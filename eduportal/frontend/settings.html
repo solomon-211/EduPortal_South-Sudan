@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings | EduPortal South Sudan</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/sidebar.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body data-page="settings">
+  <div class="dashboard">
+    <nav class="sidebar"></nav>
+
+    <header class="top-banner">
+      <div>
+        <p class="eyebrow">Settings</p>
+        <h1>Notifications and account security.</h1>
+      </div>
+      <div class="top-banner-actions">
+        <a class="banner-link" href="/profile">My Profile</a>
+        <a class="banner-link banner-link-solid" href="/dashboard">Dashboard</a>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="content-grid">
+
+        <article class="content-panel settings-panel">
+          <p class="section-label">NOTIFICATION PREFERENCES</p>
+          <p class="settings-copy">Choose how EduPortal contacts you about scholarships, deadlines, and announcements.</p>
+          <p id="notifications-message" class="status-message settings-message"></p>
+          <form id="notifications-form" class="settings-form">
+            <label class="settings-option">
+              <input type="checkbox" name="notify_email">
+              <div>
+                <strong class="settings-option-title">Email notifications</strong>
+                <span class="settings-option-desc">Receive weekly updates, OTP codes, and application status emails.</span>
+              </div>
+            </label>
+            <label class="settings-option">
+              <input type="checkbox" name="notify_sms">
+              <div>
+                <strong class="settings-option-title">SMS alerts</strong>
+                <span class="settings-option-desc">Get urgent scholarship deadline reminders by text message (7 and 1 day before closing).</span>
+              </div>
+            </label>
+            <label class="settings-option">
+              <input type="checkbox" name="notify_inapp">
+              <div>
+                <strong class="settings-option-title">In-app reminders</strong>
+                <span class="settings-option-desc">See deadline and announcement reminders when you sign in.</span>
+              </div>
+            </label>
+            <button class="card-button settings-form-button" type="submit">Save preferences</button>
+          </form>
+        </article>
+
+        <article class="content-panel settings-panel">
+          <p class="section-label">CHANGE PASSWORD</p>
+          <p class="settings-copy">Use a strong password and update it regularly, especially on shared devices.</p>
+          <p id="password-message" class="status-message settings-message"></p>
+          <form id="change-password-form" class="settings-form settings-form-spaced">
+            <div class="field">
+              <span>Current password</span>
+              <div class="input-wrap">
+                <svg class="input-icon" viewBox="0 0 16 16" fill="none" width="16" height="16" aria-hidden="true"><rect x="2" y="7" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <input type="password" name="current_password" placeholder="Your current password" required autocomplete="current-password">
+              </div>
+            </div>
+            <div class="field">
+              <span>New password</span>
+              <div class="input-wrap">
+                <svg class="input-icon" viewBox="0 0 16 16" fill="none" width="16" height="16" aria-hidden="true"><rect x="2" y="7" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <input type="password" name="new_password" placeholder="At least 8 characters" required minlength="8" autocomplete="new-password">
+              </div>
+            </div>
+            <div class="field">
+              <span>Confirm new password</span>
+              <div class="input-wrap">
+                <svg class="input-icon" viewBox="0 0 16 16" fill="none" width="16" height="16" aria-hidden="true"><rect x="2" y="7" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <input type="password" name="confirm_password" placeholder="Repeat new password" required autocomplete="new-password">
+              </div>
+            </div>
+            <button class="card-button settings-form-button" type="submit">Change password</button>
+          </form>
+        </article>
+
+        <article class="content-panel settings-panel">
+          <p class="section-label">ACCOUNT DEACTIVATION</p>
+          <p class="settings-copy">Deactivate your account if you no longer want to use EduPortal. You can sign up again later if needed.</p>
+          <p id="deactivate-message" class="status-message settings-message"></p>
+          <button class="card-button settings-danger-button" id="deactivate-account-btn" type="button">Deactivate account</button>
+        </article>
+
+      </div>
+    </main>
+  </div>
+</body>
+</html>

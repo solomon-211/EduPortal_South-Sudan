@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>School Dashboard | EduPortal South Sudan</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/sidebar.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body data-page="school-dashboard">
+<div class="dashboard">
+  <nav class="sidebar"></nav>
+
+  <header class="top-banner">
+    <div>
+      <p class="eyebrow">School Dashboard</p>
+      <h1 id="school-dash-title">Your school overview.</h1>
+    </div>
+    <div class="top-banner-actions">
+      <a class="banner-link" id="sd-public-profile-link" href="/directory" style="display:none">View Public Profile</a>
+      <a class="banner-link" href="/directory">Directory</a>
+      <a class="banner-link banner-link-solid" href="/dashboard">Dashboard</a>
+    </div>
+  </header>
+
+  <main class="main-content" id="school-dash-shell">
+
+    <p id="school-dash-notice" class="admin-notice" style="display:none">
+      This page is for school administrators only. Ask the platform admin to assign you to a school.
+    </p>
+
+    <!-- Stat strip -->
+    <div class="dash-stat-grid" id="school-stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.4rem">
+      <div class="summary-card card">
+        <p class="card-label">Enrollment</p>
+        <p class="card-number" id="sd-enrollment">—</p>
+        <p class="card-sub">Current students</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Capacity</p>
+        <p class="card-number" id="sd-capacity">—</p>
+        <p class="card-sub">Total places</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Saved by users</p>
+        <p class="card-number" id="sd-bookmarks">—</p>
+        <p class="card-sub">Bookmarks</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Status</p>
+        <p class="card-number" id="sd-status" style="font-size:1.4rem;padding-top:0.3rem">—</p>
+        <p class="card-sub">Admissions</p>
+      </div>
+    </div>
+
+    <!-- Main two-column grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;align-items:start">
+
+      <!-- LEFT col -->
+      <div style="display:grid;gap:1.2rem">
+
+        <!-- School info edit -->
+        <section class="content-panel">
+          <p class="section-label" style="margin-bottom:1rem">SCHOOL INFORMATION</p>
+          <p id="sd-info-msg" class="status-message" style="margin-bottom:0.6rem"></p>
+          <form id="sd-info-form" class="post-form-grid">
+            <div class="post-form-row-2">
+              <label class="field"><span>School Name</span><input class="field-input" name="name" type="text" required></label>
+              <label class="field"><span>Status</span>
+                <select name="status" style="width:100%;border:1.5px solid rgba(91,15,15,0.12);border-radius:12px;padding:0.88rem 1rem;background:#fdfaf8;font:inherit;color:var(--ink)">
+                  <option value="open">Open</option>
+                  <option value="limited">Limited</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Capacity</span><input name="capacity" type="number" min="0"></label>
+              <label class="field"><span>Enrollment</span><input name="enrollment" type="number" min="0"></label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Contact Name</span><input name="contact_name" type="text"></label>
+              <label class="field"><span>Phone</span><input name="phone" type="tel"></label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Email</span><input name="email" type="email"></label>
+              <label class="field"><span>Hours</span><input name="hours" type="text" placeholder="e.g. 7:30 AM – 3:30 PM"></label>
+            </div>
+            <label class="field"><span>Description</span>
+              <textarea name="description" rows="3" class="post-form-textarea"></textarea>
+            </label>
+            <button class="card-button" type="submit" style="width:auto;padding:0.65rem 1.4rem;margin-top:0">Save Changes</button>
+          </form>
+        </section>
+
+        <!-- Admission requirements -->
+        <section class="content-panel">
+          <p class="section-label" style="margin-bottom:0.8rem">ADMISSION REQUIREMENTS</p>
+          <p id="sd-reqs-msg" class="status-message" style="margin-bottom:0.6rem"></p>
+          <div id="sd-req-editor"></div>
+          <div style="display:flex;gap:0.6rem;margin-top:0.75rem;flex-wrap:wrap">
+            <button id="sd-add-req" class="card-button" style="width:auto;padding:0.55rem 1rem;margin-top:0;background:transparent;color:var(--maroon);border:1.5px solid rgba(139,26,26,0.2);box-shadow:none">+ Add requirement</button>
+            <button id="sd-save-reqs" class="card-button" style="width:auto;padding:0.65rem 1.4rem;margin-top:0">Save Requirements</button>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- RIGHT col -->
+      <div style="display:grid;gap:1.2rem">
+
+        <!-- Post announcement -->
+        <section class="content-panel">
+          <p class="section-label" style="margin-bottom:1rem">POST ANNOUNCEMENT</p>
+          <p id="sd-ann-msg" class="status-message" style="margin-bottom:0.6rem"></p>
+          <form id="sd-ann-form" class="post-form-grid">
+            <label class="field"><span>Title</span><input name="title" type="text" placeholder="Announcement title" required></label>
+            <label class="field"><span>Body</span>
+              <textarea name="body" rows="3" class="post-form-textarea" placeholder="Write your announcement here…" required></textarea>
+            </label>
+            <div class="post-form-row-2">
+              <label class="field"><span>Audience</span>
+                <select name="audience" style="width:100%;border:1.5px solid rgba(91,15,15,0.12);border-radius:12px;padding:0.88rem 1rem;background:#fdfaf8;font:inherit;color:var(--ink)">
+                  <option value="students">Students</option>
+                  <option value="parents">Parents</option>
+                  <option value="teachers">Teachers</option>
+                  <option value="all">All</option>
+                </select>
+              </label>
+              <label class="field"><span>Expires on</span>
+                <input name="expires_at" type="date" style="width:100%;border:1.5px solid rgba(91,15,15,0.12);border-radius:12px;padding:0.88rem 1rem;background:#fdfaf8;font:inherit;color:var(--ink)">
+              </label>
+            </div>
+            <button class="card-button" type="submit" style="width:auto;padding:0.65rem 1.4rem;margin-top:0">Submit for review</button>
+          </form>
+        </section>
+
+        <!-- Upload material -->
+        <section class="content-panel">
+          <p class="section-label" style="margin-bottom:1rem">UPLOAD LEARNING RESOURCE</p>
+          <p id="sd-mat-msg" class="status-message" style="margin-bottom:0.6rem"></p>
+          <form id="sd-mat-form" class="post-form-grid">
+            <label class="field"><span>Title</span><input name="title" type="text" placeholder="Resource title" required></label>
+            <div class="post-form-row-2">
+              <label class="field"><span>Subject</span>
+                <select name="subject" style="width:100%;border:1.5px solid rgba(91,15,15,0.12);border-radius:12px;padding:0.88rem 1rem;background:#fdfaf8;font:inherit;color:var(--ink)">
+                  <option value="Mathematics">Mathematics</option>
+                  <option value="English">English</option>
+                  <option value="Science">Science</option>
+                  <option value="Social Studies">Social Studies</option>
+                </select>
+              </label>
+              <label class="field"><span>Grade</span>
+                <select name="grade" style="width:100%;border:1.5px solid rgba(91,15,15,0.12);border-radius:12px;padding:0.88rem 1rem;background:#fdfaf8;font:inherit;color:var(--ink)">
+                  <option>P1</option><option>P2</option><option>P3</option><option>P4</option>
+                  <option>P5</option><option>P6</option><option>P7</option><option>P8</option>
+                  <option>S1</option><option>S2</option><option>S3</option>
+                  <option>S4</option><option>S5</option><option>S6</option>
+                </select>
+              </label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Year</span><input name="year" type="number" placeholder="e.g. 2024" min="2000" max="2099" required></label>
+              <label class="field"><span>Type</span>
+                <select name="type" style="width:100%;border:1.5px solid rgba(91,15,15,0.12);border-radius:12px;padding:0.88rem 1rem;background:#fdfaf8;font:inherit;color:var(--ink)">
+                  <option value="past paper">Past Paper</option>
+                  <option value="study guide">Study Guide</option>
+                  <option value="teacher note">Teacher Note</option>
+                </select>
+              </label>
+            </div>
+            <label class="field"><span>PDF file (max 20 MB)</span>
+              <input name="file" type="file" accept=".pdf" style="border:1.5px solid rgba(91,15,15,0.13);border-radius:10px;padding:0.6rem 0.9rem;background:#fdfaf9;width:100%;cursor:pointer">
+            </label>
+            <button class="card-button" type="submit" style="width:auto;padding:0.65rem 1.4rem;margin-top:0">Submit for review</button>
+          </form>
+        </section>
+
+        <!-- Recent announcements -->
+        <section class="content-panel">
+          <p class="section-label" style="margin-bottom:0.8rem">RECENT ANNOUNCEMENTS</p>
+          <div id="sd-ann-list"><p class="loading-text">Loading…</p></div>
+        </section>
+
+        <!-- Recent materials -->
+        <section class="content-panel">
+          <p class="section-label" style="margin-bottom:0.8rem">UPLOADED MATERIALS</p>
+          <div id="sd-mat-list"><p class="loading-text">Loading…</p></div>
+        </section>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>
