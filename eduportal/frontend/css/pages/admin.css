@@ -1,0 +1,135 @@
+/* Admin page specific styling */
+#admin-notice {
+  display: none;
+}
+
+#admin-stat-grid {
+  margin-bottom: 1.4rem;
+}
+
+.admin-tab-nav {
+  margin-bottom: 1rem;
+}
+
+.admin-tab-panel .content-panel {
+  margin-bottom: 1rem;
+}
+
+.admin-shell-card {
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-shell-card-lg {
+  padding: 1.2rem;
+  margin-bottom: 1.2rem;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.admin-form-copy {
+  font-size: 0.84rem;
+  color: #888;
+  margin: 0 0 0.9rem;
+}
+
+.admin-form-label {
+  display: block;
+  margin-bottom: 0.9rem;
+}
+
+.admin-form-area {
+  resize: vertical;
+}
+
+.admin-action-btn {
+  width: auto;
+  padding: 0.65rem 1.6rem;
+  margin-top: 0;
+}
+
+.admin-action-btn-sm {
+  width: auto;
+  padding: 0.65rem 1.4rem;
+  margin-top: 0;
+}
+
+.admin-inline-note {
+  margin-left: 0.8rem;
+  font-size: 0.88rem;
+}
+
+.admin-note-box {
+  display: none;
+  margin-top: 0.9rem;
+  padding: 0.75rem 1rem;
+  background: #f0faf4;
+  border: 1.5px solid #b2dfcc;
+  border-radius: 10px;
+}
+
+.admin-note-title {
+  margin: 0 0 0.3rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #1a7a3c;
+}
+
+.admin-note-text {
+  margin: 0;
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+.admin-note-subtext {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: #888;
+}
+
+.admin-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+
+.admin-count {
+  font-size: 0.82rem;
+  color: #888;
+}
+
+.admin-grid-analytics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.admin-filter-select {
+  flex: 1;
+  min-width: 160px;
+  border: 1.5px solid rgba(91,15,15,0.13);
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  background: #fdfaf9;
+  font: inherit;
+  color: var(--ink);
+}
+
+.admin-filter-row {
+  margin: 0;
+}
+
+.admin-filter-panel {
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-grid-panel {
+  margin-bottom: 1rem;
+}

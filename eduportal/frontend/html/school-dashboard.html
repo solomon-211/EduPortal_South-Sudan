@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>School Dashboard | EduPortal South Sudan</title>
+  <link rel="stylesheet" href="/static/html/school-dashboard.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/sidebar.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body class="dashboard-page" data-page="school-dashboard">
+<div class="dashboard">
+  <nav class="sidebar"></nav>
+
+  <header class="top-banner">
+    <div>
+      <p class="eyebrow">School Dashboard</p>
+      <h1 id="school-dash-title">Your school overview.</h1>
+    </div>
+    <div class="top-banner-actions">
+      <a class="banner-link hidden" id="sd-public-profile-link" href="/directory">View Public Profile</a>
+      <a class="banner-link" href="/directory">Directory</a>
+      <a class="banner-link banner-link-solid" href="/dashboard">Dashboard</a>
+    </div>
+  </header>
+
+  <main class="main-content" id="school-dash-shell">
+
+    <p id="school-dash-notice" class="admin-notice hidden">
+      This page is for school administrators only. Ask the platform admin to assign you to a school.
+    </p>
+
+    <!-- Stat strip -->
+    <div class="dash-stat-grid school-stat-grid" id="school-stat-grid">
+      <div class="summary-card card">
+        <p class="card-label">Enrollment</p>
+        <p class="card-number" id="sd-enrollment">&mdash;</p>
+        <p class="card-sub">Current students</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Capacity</p>
+        <p class="card-number" id="sd-capacity">&mdash;</p>
+        <p class="card-sub">Total places</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Saved by users</p>
+        <p class="card-number" id="sd-bookmarks">&mdash;</p>
+        <p class="card-sub">Bookmarks</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Status</p>
+        <p class="card-number school-status-number" id="sd-status">&mdash;</p>
+        <p class="card-sub">Admissions</p>
+      </div>
+    </div>
+
+    <!-- Main two-column grid -->
+    <div class="school-dashboard-grid">
+
+      <!-- LEFT col -->
+      <div class="school-column">
+
+        <!-- School info edit -->
+        <section class="content-panel">
+          <p class="section-label school-section-label">SCHOOL INFORMATION</p>
+          <p id="sd-info-msg" class="status-message school-status-message"></p>
+          <form id="sd-info-form" class="post-form-grid">
+            <div class="post-form-row-2">
+              <label class="field"><span>School Name</span><input class="field-input" name="name" type="text" required></label>
+              <label class="field"><span>Status</span>
+                <select class="school-select" name="status">
+                  <option value="open">Open</option>
+                  <option value="limited">Limited</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Capacity</span><input name="capacity" type="number" min="0"></label>
+              <label class="field"><span>Enrollment</span><input name="enrollment" type="number" min="0"></label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Contact Name</span><input name="contact_name" type="text"></label>
+              <label class="field"><span>Phone</span><input name="phone" type="tel"></label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Email</span><input name="email" type="email"></label>
+              <label class="field"><span>Hours</span><input name="hours" type="text" placeholder="e.g. 7:30 AM - 3:30 PM"></label>
+            </div>
+            <label class="field"><span>Description</span>
+              <textarea name="description" rows="3" class="post-form-textarea"></textarea>
+            </label>
+            <button class="card-button u-card-button-compact-sm" type="submit">Save Changes</button>
+          </form>
+        </section>
+
+        <!-- Admission requirements -->
+        <section class="content-panel">
+          <p class="section-label school-section-label-sm">ADMISSION REQUIREMENTS</p>
+          <p id="sd-reqs-msg" class="status-message school-status-message"></p>
+          <div id="sd-req-editor"></div>
+          <div class="school-toolbar">
+            <button id="sd-add-req" class="card-button school-outline-btn" type="button">+ Add requirement</button>
+            <button id="sd-save-reqs" class="card-button u-card-button-compact-sm" type="button">Save Requirements</button>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- RIGHT col -->
+      <div class="school-column">
+
+        <!-- Post announcement -->
+        <section class="content-panel">
+          <p class="section-label school-section-label">POST ANNOUNCEMENT</p>
+          <p id="sd-ann-msg" class="status-message school-status-message"></p>
+          <form id="sd-ann-form" class="post-form-grid">
+            <label class="field"><span>Title</span><input name="title" type="text" placeholder="Announcement title" required></label>
+            <label class="field"><span>Body</span>
+              <textarea name="body" rows="3" class="post-form-textarea" placeholder="Write your announcement hereâ€¦" required></textarea>
+            </label>
+            <div class="post-form-row-2">
+              <label class="field"><span>Audience</span>
+                <select class="school-select" name="audience">
+                  <option value="students">Students</option>
+                  <option value="parents">Parents</option>
+                  <option value="teachers">Teachers</option>
+                  <option value="all">All</option>
+                </select>
+              </label>
+              <label class="field"><span>Expires on</span>
+                <input class="school-input" name="expires_at" type="date">
+              </label>
+            </div>
+            <button class="card-button u-card-button-compact-sm" type="submit">Submit for review</button>
+          </form>
+        </section>
+
+        <!-- Upload material -->
+        <section class="content-panel">
+          <p class="section-label school-section-label">UPLOAD LEARNING RESOURCE</p>
+          <p id="sd-mat-msg" class="status-message school-status-message"></p>
+          <form id="sd-mat-form" class="post-form-grid">
+            <label class="field"><span>Title</span><input name="title" type="text" placeholder="Resource title" required></label>
+            <div class="post-form-row-2">
+              <label class="field"><span>Subject</span>
+                <select class="school-select" name="subject">
+                  <option value="Mathematics">Mathematics</option>
+                  <option value="English">English</option>
+                  <option value="Science">Science</option>
+                  <option value="Social Studies">Social Studies</option>
+                </select>
+              </label>
+              <label class="field"><span>Grade</span>
+                <select class="school-select" name="grade">
+                  <option>P1</option><option>P2</option><option>P3</option><option>P4</option>
+                  <option>P5</option><option>P6</option><option>P7</option><option>P8</option>
+                  <option>S1</option><option>S2</option><option>S3</option>
+                  <option>S4</option><option>S5</option><option>S6</option>
+                </select>
+              </label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Year</span><input name="year" type="number" placeholder="e.g. 2024" min="2000" max="2099" required></label>
+              <label class="field"><span>Type</span>
+                <select class="school-select" name="type">
+                  <option value="past paper">Past Paper</option>
+                  <option value="study guide">Study Guide</option>
+                  <option value="teacher note">Teacher Note</option>
+                </select>
+              </label>
+            </div>
+            <label class="field"><span>PDF file (max 20 MB)</span>
+              <input class="school-file" name="file" type="file" accept=".pdf">
+            </label>
+            <button class="card-button u-card-button-compact-sm" type="submit">Submit for review</button>
+          </form>
+        </section>
+
+        <!-- Recent announcements -->
+        <section class="content-panel">
+          <p class="section-label school-section-label-sm">RECENT ANNOUNCEMENTS</p>
+          <div id="sd-ann-list"><p class="loading-text">Loadingâ€¦</p></div>
+        </section>
+
+        <!-- Recent materials -->
+        <section class="content-panel">
+          <p class="section-label school-section-label-sm">UPLOADED MATERIALS</p>
+          <div id="sd-mat-list"><p class="loading-text">Loadingâ€¦</p></div>
+        </section>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>

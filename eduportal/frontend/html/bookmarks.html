@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Bookmarks | EduPortal South Sudan</title>
+  <link rel="stylesheet" href="/static/html/bookmarks.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/sidebar.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body data-page="bookmarks">
+  <div class="dashboard">
+    <nav class="sidebar"></nav>
+
+    <header class="top-banner">
+      <div>
+        <p class="eyebrow">My Bookmarks</p>
+        <h1>Saved schools and materials.</h1>
+      </div>
+      <div class="top-banner-actions">
+        <a class="banner-link" href="/directory">Browse Schools</a>
+        <a class="banner-link banner-link-solid" href="/materials">Browse Materials</a>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <!-- Tab nav -->
+      <div class="admin-tab-nav u-space-bottom-md">
+        <button class="admin-tab-btn active" data-tab="bm-schools">Schools</button>
+        <button class="admin-tab-btn" data-tab="bm-materials">Materials</button>
+        <button class="admin-tab-btn" data-tab="bm-scholarships">Scholarships</button>
+      </div>
+
+      <div id="bm-schools" class="admin-tab-panel active">
+        <div id="bm-schools-list" class="cards-grid results-grid"></div>
+      </div>
+      <div id="bm-materials" class="admin-tab-panel">
+        <div id="bm-materials-list" class="cards-grid results-grid"></div>
+      </div>
+      <div id="bm-scholarships" class="admin-tab-panel">
+        <div id="bm-scholarships-list" class="cards-grid results-grid"></div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

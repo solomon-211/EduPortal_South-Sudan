@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NGO Dashboard | EduPortal South Sudan</title>
+  <link rel="stylesheet" href="/static/html/ngo-dashboard.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/sidebar.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body class="dashboard-page" data-page="ngo-dashboard">
+<div class="dashboard">
+  <nav class="sidebar"></nav>
+
+  <header class="top-banner">
+    <div class="top-banner-left">
+      <p class="eyebrow">NGO Dashboard</p>
+      <h1 id="ngo-dash-title">Your organisation overview.</h1>
+    </div>
+    <div class="top-banner-actions">
+      <a class="banner-link" href="/opportunities">All Scholarships</a>
+      <a class="banner-link banner-link-solid" href="/dashboard">Dashboard</a>
+    </div>
+  </header>
+
+  <main class="main-content" id="ngo-dash-shell">
+
+    <p id="ngo-dash-notice" class="admin-notice hidden">
+      This page is for NGO officers only. Please sign in with an NGO officer account.
+    </p>
+
+    <!-- Stat strip -->
+    <div class="dash-stat-grid u-grid-stat-3 u-space-bottom-md">
+      <div class="summary-card card">
+        <p class="card-label">Scholarships</p>
+        <p class="card-number" id="nd-sch-count">&mdash;</p>
+        <p class="card-sub">Posted by your org</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Applications</p>
+        <p class="card-number" id="nd-app-count">&mdash;</p>
+        <p class="card-sub">Across all programs</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Announcements</p>
+        <p class="card-number" id="nd-ann-count">&mdash;</p>
+        <p class="card-sub">Posted by your org</p>
+      </div>
+    </div>
+
+    <!-- Main two-column grid -->
+    <div class="u-grid-two">
+
+      <!-- LEFT col -->
+      <div class="u-grid-stack-sm">
+
+        <!-- Organisation profile -->
+        <section class="content-panel">
+          <p class="section-label u-card-head-sm">ORGANISATION PROFILE</p>
+          <p id="nd-org-msg" class="status-message u-space-bottom-xs"></p>
+          <form id="nd-org-form" class="post-form-grid">
+            <label class="field"><span>Organisation Name</span><input name="org_name" type="text" placeholder="Your organisation name" required></label>
+            <div class="post-form-row-2">
+              <label class="field"><span>Contact Person</span><input name="contact" type="text" placeholder="Full name"></label>
+              <label class="field"><span>Phone</span><input name="phone" type="tel" placeholder="+211 912 000 000"></label>
+            </div>
+            <label class="field"><span>Email</span><input name="email" type="email" placeholder="org@example.com"></label>
+            <label class="field"><span>About your organisation</span>
+              <textarea name="description" rows="3" class="post-form-textarea" placeholder="Brief description of your workâ€¦"></textarea>
+            </label>
+            <button class="card-button u-card-button-compact-sm" type="submit">Save Profile</button>
+          </form>
+        </section>
+
+        <!-- Post scholarship -->
+        <section class="content-panel">
+          <p class="section-label u-card-head-sm">POST A SCHOLARSHIP</p>
+          <p id="nd-sch-msg" class="status-message u-space-bottom-xs"></p>
+          <form id="nd-sch-form" class="post-form-grid">
+            <label class="field"><span>Title</span><input name="title" type="text" placeholder="Scholarship title" required></label>
+            <label class="field"><span>Description</span>
+              <textarea name="description" rows="2" class="post-form-textarea" placeholder="What does this scholarship offer?" required></textarea>
+            </label>
+            <label class="field"><span>Eligibility</span>
+              <textarea name="eligibility" rows="2" class="post-form-textarea" placeholder="Who can apply?" required></textarea>
+            </label>
+            <div class="post-form-row-2">
+              <label class="field"><span>Deadline</span>
+                <input name="deadline" type="date" class="u-date-plain" required>
+              </label>
+              <label class="field"><span>External Link</span><input name="external_link" type="url" placeholder="https://â€¦"></label>
+            </div>
+            <label class="field"><span>How to Apply</span>
+              <textarea name="how_to_apply" rows="2" class="post-form-textarea" placeholder="Step-by-step instructionsâ€¦" required></textarea>
+            </label>
+            <label class="field"><span>Required Documents</span>
+              <input name="required_docs" type="text" placeholder="e.g. Report card, ID, motivation letter">
+            </label>
+            <button class="card-button u-card-button-compact-sm" type="submit">Submit for review</button>
+          </form>
+        </section>
+
+      </div>
+
+      <!-- RIGHT col -->
+      <div class="u-grid-stack-sm">
+
+        <!-- Post announcement -->
+        <section class="content-panel">
+          <p class="section-label u-card-head-sm">POST ANNOUNCEMENT</p>
+          <p id="nd-ann-msg" class="status-message u-space-bottom-xs"></p>
+          <form id="nd-ann-form" class="post-form-grid">
+            <label class="field"><span>Title</span><input name="title" type="text" placeholder="Announcement title" required></label>
+            <label class="field"><span>Body</span>
+              <textarea name="body" rows="3" class="post-form-textarea" placeholder="Write your announcement hereâ€¦" required></textarea>
+            </label>
+            <div class="post-form-row-2">
+              <label class="field"><span>Audience</span>
+                <select name="audience" class="u-select-plain">
+                  <option value="students">Students</option>
+                  <option value="parents">Parents</option>
+                  <option value="teachers">Teachers</option>
+                  <option value="all">All</option>
+                </select>
+              </label>
+              <label class="field"><span>Expires on</span>
+                <input name="expires_at" type="date" class="u-date-plain">
+              </label>
+            </div>
+            <button class="card-button u-card-button-compact-sm" type="submit">Submit for review</button>
+          </form>
+        </section>
+
+        <!-- Scholarships list -->
+        <section class="content-panel">
+          <p class="section-label u-card-head-xs">YOUR SCHOLARSHIPS</p>
+          <div id="nd-sch-list"><p class="loading-text">Loadingâ€¦</p></div>
+        </section>
+
+        <!-- Announcements list -->
+        <section class="content-panel">
+          <p class="section-label u-card-head-xs">YOUR ANNOUNCEMENTS</p>
+          <div id="nd-ann-list"><p class="loading-text">Loadingâ€¦</p></div>
+        </section>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>

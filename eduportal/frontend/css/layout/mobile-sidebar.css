@@ -1,0 +1,112 @@
+/* Mobile sidebar drawer and overlay behavior */
+
+/* Hamburger button — hidden on desktop, fixed position on mobile */
+.sidebar-hamburger {
+  display: none;
+  position: fixed;
+  top: 0.85rem;
+  left: 0.85rem;
+  z-index: 101;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1.5px solid rgba(91,15,15,0.18);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(47,11,11,0.12);
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.sidebar-hamburger:hover {
+  background: rgba(139,26,26,0.06);
+  border-color: rgba(139,26,26,0.3);
+}
+
+.ham-bar {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--maroon-dark);
+  transition: transform var(--transition), opacity var(--transition), width var(--transition);
+  transform-origin: center;
+}
+
+/* Animated X when open */
+.sidebar-hamburger.is-open .ham-bar:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.sidebar-hamburger.is-open .ham-bar:nth-child(2) { opacity: 0; width: 0; }
+.sidebar-hamburger.is-open .ham-bar:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Dim overlay behind the open drawer */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 8, 8, 0.45);
+  z-index: 99;
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+.sidebar-overlay.sidebar-overlay-visible {
+  display: block;
+  opacity: 1;
+}
+
+/* Prevent body scroll when drawer is open */
+.sidebar-body-lock { overflow: hidden; }
+
+@media (max-width: 980px) {
+  /* Show the hamburger */
+  .sidebar-hamburger { display: flex; }
+
+  /* Turn sidebar into a fixed off-canvas drawer */
+  .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 280px;
+    overflow-y: auto;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 280ms ease;
+    border-right: 1px solid rgba(91,15,15,0.1);
+    box-shadow: none;
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 40px rgba(47,11,11,0.18);
+  }
+
+  /* Remove desktop sidebar offset */
+  .top-banner,
+  .main-content {
+    margin-left: 0 !important;
+  }
+
+  /* Push top-banner content right so it clears the fixed hamburger (40px + 0.85rem*2 gap) */
+  .top-banner {
+    padding-left: 3.8rem !important;
+  }
+
+  /* page-topbar variant (directory, materials, etc.) */
+  .page-topbar {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding-left: 3.8rem !important;
+  }
+
+  body[data-page="announcements"] .page-topbar,
+  body[data-page="announcements"] .page-shell {
+    margin-left: 0 !important;
+    width: auto !important;
+  }
+}

@@ -2,35 +2,109 @@
 
 import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 
 import bcrypt
 import jwt
-from flask import Flask, jsonify, render_template, request, redirect, url_for, send_file as flask_send_file
+from flask import Flask, jsonify, render_template, request, redirect, url_for, send_file as flask_send_file, send_from_directory
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.utils import secure_filename
 
+try:
+    import mysql.connector as mysql_connector
+except Exception:  # pragma: no cover - optional dependency for local SQLite runs
+    mysql_connector = None
+
 BASE_DIR          = Path(__file__).resolve().parent.parent
 FRONTEND_DIR      = BASE_DIR / "frontend"
-DB_PATH           = BASE_DIR / "eduportal.sqlite3"
+HTML_DIR          = FRONTEND_DIR / "html"
+CSS_DIR           = FRONTEND_DIR / "css"
+JS_DIR            = FRONTEND_DIR / "javascript"
+ASSETS_DIR        = FRONTEND_DIR / "assets"
+DB_DIR            = BASE_DIR / "database"
+DB_PATH           = DB_DIR / "eduportal.sqlite3"
+MYSQL_HOST        = os.environ.get("MYSQL_HOST", "").strip()
+MYSQL_PORT        = int(os.environ.get("MYSQL_PORT", "3306"))
+MYSQL_USER        = os.environ.get("MYSQL_USER", "").strip()
+MYSQL_PASSWORD    = os.environ.get("MYSQL_PASSWORD", "")
+MYSQL_DATABASE    = os.environ.get("MYSQL_DATABASE", "").strip()
 JWT_SECRET        = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-change-in-prod")
-UPLOAD_FOLDER     = BASE_DIR / "frontend" / "static" / "avatars"
-MATERIALS_FOLDER  = BASE_DIR / "frontend" / "static" / "materials"
+UPLOAD_FOLDER     = ASSETS_DIR / "avatars"
+MATERIALS_FOLDER  = ASSETS_DIR / "materials"
 ALLOWED_EXTENSIONS      = {"jpg", "jpeg", "png", "gif", "webp"}
 ALLOWED_MATERIAL_EXTS   = {"pdf"}
 MAX_AVATAR_BYTES         = 2 * 1024 * 1024   # 2 MB
 MAX_MATERIAL_BYTES       = 20 * 1024 * 1024  # 20 MB
+_DB_READY = False
+
+
+def _mysql_enabled() -> bool:
+    return bool(MYSQL_HOST and MYSQL_DATABASE and mysql_connector is not None)
+
+
+def _adapt_sql(sql: str) -> str:
+    if not _mysql_enabled():
+        return sql
+    sql = sql.replace("INSERT OR IGNORE INTO", "INSERT IGNORE INTO")
+    sql = sql.replace("INSERT OR REPLACE INTO", "REPLACE INTO")
+    sql = sql.replace("?", "%s")
+    return sql
+
+
+def _adapt_schema(sql: str) -> str:
+    if not _mysql_enabled():
+        return sql
+    sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "INT NOT NULL AUTO_INCREMENT PRIMARY KEY")
+    sql = sql.replace("TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    return sql
+
+
+class DBProxy:
+    def __init__(self, conn):
+        self._conn = conn
+        if not _mysql_enabled():
+            self._conn.row_factory = sqlite3.Row
+
+    def execute(self, sql: str, params: tuple = ()):
+        sql = _adapt_sql(sql)
+        if _mysql_enabled():
+            cur = self._conn.cursor(dictionary=True)
+            cur.execute(sql, params)
+            return cur
+        return self._conn.execute(sql, params)
+
+    def executescript(self, script: str):
+        if _mysql_enabled():
+            for statement in _adapt_schema(script).split(";"):
+                stmt = statement.strip()
+                if stmt:
+                    self.execute(stmt)
+            return None
+        return self._conn.executescript(script)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
 
 app = Flask(
     __name__,
-    template_folder=str(FRONTEND_DIR),
-    static_folder=str(FRONTEND_DIR / "static"),
-    static_url_path="/static",
+    template_folder=str(HTML_DIR),
+    static_folder=None,
 )
 app.config["MAX_CONTENT_LENGTH"] = MAX_MATERIAL_BYTES
+DB_DIR.mkdir(parents=True, exist_ok=True)
 
 limiter = Limiter(
     get_remote_address,
@@ -47,12 +121,83 @@ def add_security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
+
+@app.route("/static/<path:filename>")
+def static_files(filename: str):
+    # CSS compatibility
+    if filename == "styles.css":
+        return send_from_directory(str(CSS_DIR), "styles.css")
+    if filename.startswith("pages/"):
+        return send_from_directory(str(CSS_DIR / "pages"), filename[len("pages/"):])
+    if filename.startswith("shared/"):
+        return send_from_directory(str(CSS_DIR / "shared"), filename[len("shared/"):])
+    if filename.startswith("layout/"):
+        return send_from_directory(str(CSS_DIR / "layout"), filename[len("layout/"):])
+    if filename.startswith("auth/"):
+        return send_from_directory(str(CSS_DIR / "auth"), filename[len("auth/"):])
+    if filename.startswith("html/"):
+        return send_from_directory(str(CSS_DIR / "html"), filename[len("html/"):])
+    # Backward compatibility for previous modular imports under /static/css/**
+    if filename.startswith("css/layout/"):
+        return send_from_directory(str(CSS_DIR / "layout"), filename[len("css/layout/"):])
+    if filename.startswith("css/auth/"):
+        return send_from_directory(str(CSS_DIR / "auth"), filename[len("css/auth/"):])
+
+    # JavaScript compatibility
+    if filename in {"app.js", "sidebar.js"}:
+        return send_from_directory(str(JS_DIR), filename)
+    if filename.startswith("app/"):
+        return send_from_directory(str(JS_DIR / "app"), filename[len("app/"):])
+    if filename.startswith("navigation/"):
+        return send_from_directory(str(JS_DIR / "navigation"), filename[len("navigation/"):])
+    # Backward compatibility for previous modular imports under /static/js/**
+    if filename.startswith("js/app/"):
+        return send_from_directory(str(JS_DIR / "app"), filename[len("js/app/"):])
+    if filename.startswith("js/navigation/"):
+        return send_from_directory(str(JS_DIR / "navigation"), filename[len("js/navigation/"):])
+
+    # Uploaded and generated assets
+    if filename.startswith("avatars/"):
+        return send_from_directory(str(ASSETS_DIR / "avatars"), filename[len("avatars/"):])
+    if filename.startswith("materials/"):
+        return send_from_directory(str(ASSETS_DIR / "materials"), filename[len("materials/"):])
+
+    return jsonify({"error": "Not found"}), 404
+
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+@contextmanager
+def get_db():
+    if _mysql_enabled():
+        conn = mysql_connector.connect(  # type: ignore[union-attr]
+            host=MYSQL_HOST,
+            port=MYSQL_PORT,
+            user=MYSQL_USER,
+            password=MYSQL_PASSWORD,
+            database=MYSQL_DATABASE,
+            autocommit=False,
+        )
+    else:
+        conn = sqlite3.connect(DB_PATH)
+    proxy = DBProxy(conn)
+    try:
+        yield proxy
+        proxy.commit()
+    except Exception:
+        proxy.rollback()
+        raise
+    finally:
+        proxy.close()
+
+
+def _table_columns(db, table: str) -> set[str]:
+    if _mysql_enabled():
+        cur = db.execute(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=?",
+            (MYSQL_DATABASE, table),
+        )
+        return {row["COLUMN_NAME"] if isinstance(row, dict) else row[0] for row in cur.fetchall()}
+    return {row[1] for row in db.execute(f"PRAGMA table_info({table})").fetchall()}
 
 def query_all(sql: str, params: tuple = ()) -> list[dict]:
     with get_db() as db:
@@ -66,7 +211,6 @@ def query_one(sql: str, params: tuple = ()) -> dict | None:
 def execute(sql: str, params: tuple = ()) -> int:
     with get_db() as db:
         cur = db.execute(sql, params)
-        db.commit()
         return cur.lastrowid or 0
 
 def count(sql: str, params: tuple = ()) -> int:
@@ -77,14 +221,13 @@ def count(sql: str, params: tuple = ()) -> int:
 def init_db() -> None:
     with get_db() as db:
         # Schema migration: add file_path to materials if missing
-        mcols = [r[1] for r in db.execute("PRAGMA table_info(materials)").fetchall()]
+        mcols = list(_table_columns(db, "materials"))
         if "file_path" not in mcols and mcols:  # table exists
             try:
                 db.execute("ALTER TABLE materials ADD COLUMN file_path TEXT")
-                db.commit()
             except Exception:
                 pass
-        db.executescript("""
+        schema = _adapt_schema("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -205,12 +348,13 @@ def init_db() -> None:
                 timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
-        scholarship_columns = {row[1] for row in db.execute("PRAGMA table_info(scholarships)")}
+        db.executescript(schema)
+        scholarship_columns = _table_columns(db, "scholarships")
         if "required_docs" not in scholarship_columns:
             db.execute("ALTER TABLE scholarships ADD COLUMN required_docs TEXT")
         if "external_link" not in scholarship_columns:
             db.execute("ALTER TABLE scholarships ADD COLUMN external_link TEXT")
-        ngo_columns = {row[1] for row in db.execute("PRAGMA table_info(ngos)")}
+        ngo_columns = _table_columns(db, "ngos")
         if "description" not in ngo_columns:
             db.execute("ALTER TABLE ngos ADD COLUMN description TEXT")
         # Safe migrations — add columns that may not exist in older DBs
@@ -245,12 +389,14 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        if db.execute("SELECT COUNT(*) FROM schools").fetchone()[0] == 0:
+        school_count = db.execute("SELECT COUNT(*) AS count FROM schools").fetchone()
+        school_count_val = school_count["count"] if isinstance(school_count, dict) else school_count[0]
+        if school_count_val == 0:
             _seed(db)
         db.commit()
 
 
-def _migrate(db: sqlite3.Connection) -> None:
+def _migrate(db) -> None:
     migrations = [
         "ALTER TABLE scholarships ADD COLUMN required_docs TEXT DEFAULT ''",
         "ALTER TABLE scholarships ADD COLUMN external_link TEXT DEFAULT ''",
@@ -284,11 +430,11 @@ def _migrate(db: sqlite3.Connection) -> None:
     for sql in migrations:
         try:
             db.execute(sql)
-        except sqlite3.OperationalError:
-            pass  # column/table already exists
+        except Exception:
+            pass
 
 
-def _seed(db: sqlite3.Connection) -> None:
+def _seed(db) -> None:
     pw = bcrypt.hashpw(b"Admin1234!", bcrypt.gensalt()).decode()
     db.execute(
         "INSERT OR IGNORE INTO users (name,email,phone,password_hash,role,state,county,verified) VALUES (?,?,?,?,?,?,?,1)",
@@ -406,8 +552,10 @@ def log_audit(admin_id: int, action: str, target_type: str, target_id: int, note
 
 @app.before_request
 def ensure_db():
-    if not DB_PATH.exists():
+    global _DB_READY
+    if not _DB_READY:
         init_db()
+        _DB_READY = True
 
 
 # ── Page routes ───────────────────────────────────────────────────────────────
@@ -813,12 +961,8 @@ def api_material_download(material_id: int):
     file_path_rel = mat.get("file_path")
     if not file_path_rel:
         return api_err("No file has been uploaded for this material yet", 404)
-    # Strip the /static/ prefix to get the real disk path
-    rel = file_path_rel.lstrip("/").replace("static/", "", 1)
-    disk_path = FRONTEND_DIR / "static" / rel.replace("static/", "")
-    # Rebuild cleanly
-    clean_rel = file_path_rel.replace("/static/", "")
-    disk_path = FRONTEND_DIR / "static" / clean_rel
+    clean_rel = file_path_rel.replace("/static/", "", 1).lstrip("/")
+    disk_path = ASSETS_DIR / clean_rel
     if not disk_path.exists():
         return api_err("File not found on server", 404)
     return flask_send_file(
