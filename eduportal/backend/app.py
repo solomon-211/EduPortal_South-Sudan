@@ -1,6 +1,8 @@
 ﻿from __future__ import annotations
 
+import logging
 import os
+import mimetypes
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
@@ -10,6 +12,8 @@ from flask import Flask, jsonify, render_template, request, redirect, url_for, s
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.utils import secure_filename
+
+log = logging.getLogger(__name__)
 
 from auth.jwt_helpers import api_err, get_current_user, log_audit, make_token, require_auth, require_role
 from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES
@@ -21,6 +25,44 @@ from notifications.sms import send_sms
 
 JWT_SECRET = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-change-in-prod")
 _DB_READY = False
+
+VIDEO_EXTENSIONS = {"mp4", "webm", "ogg", "m4v"}
+
+# Magic-byte signatures for allowed video containers
+_VIDEO_MAGIC: list[tuple[bytes, int]] = [
+    (b"\x00\x00\x00", 0),          # MP4 / M4V  (ftyp box — first 3 bytes are \x00\x00\x00)
+    (b"\x1aE\xdf\xa3", 0),         # WebM / MKV EBML header
+    (b"OggS", 0),                   # OGG
+]
+
+
+def _is_valid_video(stream) -> bool:
+    """Read the first 12 bytes and check against known video magic bytes."""
+    header = stream.read(12)
+    stream.seek(0)
+    # MP4/M4V: bytes 4-7 are 'ftyp'
+    if len(header) >= 8 and header[4:8] == b"ftyp":
+        return True
+    for magic, offset in _VIDEO_MAGIC:
+        if header[offset:offset + len(magic)] == magic:
+            return True
+    return False
+
+
+def _material_kind_from_path(file_path: str | None) -> str:
+    if not file_path:
+        return "file"
+    extension = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
+    if extension in VIDEO_EXTENSIONS:
+        return "video"
+    return "file"
+
+
+def _material_mimetype(file_path: str | None) -> str:
+    if not file_path:
+        return "application/octet-stream"
+    guessed, _ = mimetypes.guess_type(file_path)
+    return guessed or ("video/mp4" if _material_kind_from_path(file_path) == "video" else "application/octet-stream")
 
 app = Flask(
     __name__,
@@ -424,7 +466,7 @@ def api_materials():
     page     = max(1, int(request.args.get("page","1") or 1))
     per_page = 12
     approved_val = 0 if approved == "0" else 1
-    sql = "SELECT id,title,subject,grade,year,type,file_size,preview_text,created_at FROM materials WHERE approved=?"
+    sql = "SELECT id,title,subject,grade,year,type,file_size,preview_text,file_path,created_at FROM materials WHERE approved=?"
     params: list = [approved_val]
     if subject:  sql += " AND subject=?";  params.append(subject)
     if grade:    sql += " AND grade=?";    params.append(grade)
@@ -439,7 +481,7 @@ def api_materials():
 
 @app.route("/api/materials/<int:material_id>")
 def api_material_detail(material_id: int):
-    row = query_one("SELECT id,title,subject,grade,year,type,file_size,preview_text,created_at FROM materials WHERE id=? AND approved=1", (material_id,))
+    row = query_one("SELECT id,title,subject,grade,year,type,file_size,preview_text,file_path,created_at FROM materials WHERE id=? AND approved=1", (material_id,))
     if not row:
         return api_err("Material not found", 404)
     return jsonify({"material": row})
@@ -457,9 +499,12 @@ def api_materials_submit():
     if not all([title, subject, grade, year, doc_type]):
         return api_err("title, subject, grade, year, and type are required")
     year_value = int(str(year))
+    normalized_type = doc_type.lower()
+    if normalized_type in {"tutorial", "video", "video tutorial"}:
+        normalized_type = "tutorial video"
     mid = execute(
         "INSERT INTO materials (title,subject,grade,year,type,uploaded_by,approved) VALUES (?,?,?,?,?,?,0)",
-        (title, subject, grade, year_value, doc_type, u["email"] or u["phone"]),
+        (title, subject, grade, year_value, normalized_type, u["email"] or u["phone"]),
     )
     return jsonify({"message": "Material submitted for review", "id": mid}), 201
 
@@ -482,7 +527,9 @@ def api_material_upload_file(material_id: int):
         return api_err("Empty filename")
     ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
     if ext not in ALLOWED_MATERIAL_EXTS:
-        return api_err("Only PDF files are allowed")
+        return api_err("Only PDF, MP4, WebM, OGG, or M4V files are allowed")
+    if ext in VIDEO_EXTENSIONS and not _is_valid_video(f.stream):
+        return api_err("File content does not match a recognised video format", 400)
     MATERIALS_FOLDER.mkdir(parents=True, exist_ok=True)
     safe_name = f"material_{material_id}_{secure_filename(f.filename)}"
     save_path = MATERIALS_FOLDER / safe_name
@@ -491,6 +538,28 @@ def api_material_upload_file(material_id: int):
     execute("UPDATE materials SET file_path=?, file_size=? WHERE id=?",
             (f"/static/materials/{safe_name}", file_size, material_id))
     return jsonify({"message": "File uploaded", "file_path": f"/static/materials/{safe_name}"})
+
+
+@app.route("/api/materials/<int:material_id>/stream")
+@require_auth
+def api_material_stream(material_id: int):
+    """Serve a material file inline so browser-playable videos can be watched."""
+    mat = query_one("SELECT * FROM materials WHERE id=? AND approved=1", (material_id,))
+    if not mat:
+        return api_err("Material not found", 404)
+    file_path_rel = mat.get("file_path")
+    if not file_path_rel:
+        return api_err("No file has been uploaded for this material yet", 404)
+    clean_rel = file_path_rel.replace("/static/", "", 1).lstrip("/")
+    disk_path = ASSETS_DIR / clean_rel
+    if not disk_path.exists():
+        return api_err("File not found on server", 404)
+    return flask_send_file(
+        str(disk_path),
+        as_attachment=False,
+        download_name=disk_path.name,
+        mimetype=_material_mimetype(disk_path.name),
+    )
 
 
 @app.route("/api/materials/<int:material_id>/download")
@@ -511,7 +580,7 @@ def api_material_download(material_id: int):
         str(disk_path),
         as_attachment=True,
         download_name=disk_path.name,
-        mimetype="application/pdf",
+        mimetype=_material_mimetype(disk_path.name),
     )
 
 # ── Announcements ─────────────────────────────────────────────────────────────
@@ -1497,24 +1566,29 @@ def healthz():
     try:
         with get_db() as db:
             db.execute("SELECT 1")
-        return jsonify({
-            "status": "ok",
-            "database": {"engine": engine, "connected": True},
-        })
+        return jsonify({"status": "ok", "database": {"engine": engine, "connected": True}})
     except Exception as exc:
-        return jsonify({
-            "status": "degraded",
-            "database": {
-                "engine": engine,
-                "connected": False,
-                "error": str(exc),
-            },
-        }), 503
+        log.error("Health check DB error: %s", exc)
+        return jsonify({"status": "degraded", "database": {"engine": engine, "connected": False}}), 503
+
 
 @app.errorhandler(404)
 def not_found(_):
     if request.path.startswith("/api/"):
         return api_err("Not found", 404)
+    return redirect(url_for("home"))
+
+
+@app.errorhandler(413)
+def too_large(_):
+    return api_err("File too large", 413)
+
+
+@app.errorhandler(500)
+def internal_error(exc):
+    log.exception("Unhandled exception: %s", exc)
+    if request.path.startswith("/api/"):
+        return api_err("An unexpected error occurred", 500)
     return redirect(url_for("home"))
 
 if __name__ == "__main__":

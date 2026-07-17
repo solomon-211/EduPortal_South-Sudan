@@ -31,6 +31,7 @@
           <option value="past paper">Past Papers</option>
           <option value="study guide">Study Guides</option>
           <option value="teacher note">Teacher Notes</option>
+          <option value="tutorial video">Tutorial Videos</option>
         </select>
         <select name="subject" title="Filter by subject">
           <option value="">All subjects</option>
@@ -80,12 +81,13 @@
               <option value="past paper">Past Paper</option>
               <option value="study guide">Study Guide</option>
               <option value="teacher note">Teacher Note</option>
+              <option value="tutorial video">Tutorial Video</option>
             </select>
           </label>
         </div>
         <label class="field u-field-label-block">
-          <span>PDF file (optional &mdash; attach after submission)</span>
-          <input type="file" name="file" accept=".pdf" id="material-file-input" class="u-file-plain-sm">
+          <span>PDF or video file (optional &mdash; attach after submission)</span>
+          <input type="file" name="file" accept=".pdf,.mp4,.webm,.ogg,.m4v" id="material-file-input" class="u-file-plain-sm">
         </label>
         <button class="card-button u-card-button-compact-sm" type="submit">Submit for admin review</button>
         <p id="upload-material-message" class="status-message"></p>

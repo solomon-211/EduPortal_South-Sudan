@@ -24,9 +24,9 @@ MIGRATIONS_DIR   = DB_DIR / "migrations"
 # ── Upload limits ─────────────────────────────────────────────────────────────
 
 ALLOWED_EXTENSIONS    = {"jpg", "jpeg", "png", "gif", "webp"}
-ALLOWED_MATERIAL_EXTS = {"pdf"}
+ALLOWED_MATERIAL_EXTS = {"pdf", "mp4", "webm", "ogg", "m4v"}
 MAX_AVATAR_BYTES      = 2 * 1024 * 1024   # 2 MB
-MAX_MATERIAL_BYTES    = 20 * 1024 * 1024  # 20 MB
+MAX_MATERIAL_BYTES    = 100 * 1024 * 1024  # 100 MB
 
 # ── PostgreSQL ────────────────────────────────────────────────────────────────
 

@@ -1,9 +1,56 @@
 from __future__ import annotations
 
+import logging
+
 import bcrypt
 
 from config.settings import DB_DIR, MIGRATIONS_DIR, MYSQL_DATABASE
 from db.connection import get_db, db_engine, adapt_schema, table_columns
+
+log = logging.getLogger(__name__)
+
+
+# ── Migration tracking table ──────────────────────────────────────────────────
+
+_CREATE_MIGRATIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    filename TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+
+def _run_migrations(db) -> None:
+    """Apply each *.sql file in MIGRATIONS_DIR exactly once, in sorted order."""
+    engine = db_engine()
+    if engine == "sqlite":
+        db.executescript(_CREATE_MIGRATIONS_TABLE)
+    else:
+        db.execute(_CREATE_MIGRATIONS_TABLE)
+
+    applied: set[str] = set()
+    for row in db.execute("SELECT filename FROM schema_migrations").fetchall():
+        applied.add(row[0] if isinstance(row, (list, tuple)) else row["filename"])
+
+    for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        if path.name in applied:
+            continue
+        sql = path.read_text(encoding="utf-8")
+        if engine in {"mysql", "postgres"}:
+            sql = adapt_schema(sql)
+        try:
+            if engine == "sqlite":
+                db.executescript(sql)
+            else:
+                db.execute(sql)
+            db.execute(
+                "INSERT INTO schema_migrations (filename) VALUES (?)",
+                (path.name,),
+            )
+            log.info("Applied migration: %s", path.name)
+        except Exception as exc:  # noqa: BLE001
+            log.error("Migration %s failed: %s", path.name, exc)
+            raise
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -11,20 +58,7 @@ from db.connection import get_db, db_engine, adapt_schema, table_columns
 def init_db() -> None:
     DB_DIR.mkdir(parents=True, exist_ok=True)
     with get_db() as db:
-        mcols = table_columns(db, "materials")
-        if mcols and "file_path" not in mcols:
-            try:
-                db.execute("ALTER TABLE materials ADD COLUMN file_path TEXT")
-            except Exception:
-                pass
-
-        schema = "\n\n".join(
-            p.read_text(encoding="utf-8") for p in sorted(MIGRATIONS_DIR.glob("*.sql"))
-        )
-        if db_engine() in {"mysql", "postgres"}:
-            schema = adapt_schema(schema)
-        db.executescript(schema)
-
+        _run_migrations(db)
         _migrate(db)
 
         row = db.execute("SELECT COUNT(*) AS count FROM schools").fetchone()

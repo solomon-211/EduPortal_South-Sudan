@@ -101,6 +101,12 @@
     return `<span class="app-status-badge app-status-${esc(status)}">${labels[status] || esc(status)}</span>`;
   }
 
+  function materialKindFromPath(filePath) {
+    if (!filePath || typeof filePath !== 'string') return 'file';
+    const ext = filePath.includes('.') ? filePath.split('.').pop().toLowerCase() : '';
+    return ['mp4', 'webm', 'ogg', 'm4v'].includes(ext) ? 'video' : 'file';
+  }
+
   // ── Pagination helper ─────────────────────────────────────────────────────
   function renderPagination(container, total, page, perPage, onPage) {
     const pages = Math.ceil(total / perPage);
@@ -664,8 +670,8 @@
       if (!uploadForm.querySelector('[name="file"]')) {
         const fileFieldHTML = `
           <div class="field u-grid-span-full">
-            <span>PDF file (max 20 MB)</span>
-            <input type="file" name="file" accept=".pdf" class="u-file-input">
+            <span>PDF or video file (max 100 MB)</span>
+            <input type="file" name="file" accept=".pdf,.mp4,.webm,.ogg,.m4v" class="u-file-input">
           </div>`;
         const submitBtn = uploadForm.querySelector('button[type="submit"]');
         submitBtn.insertAdjacentHTML('beforebegin', fileFieldHTML);
@@ -774,11 +780,23 @@
                   <h2 class="u-card-title-sm">${esc(m.title)}</h2>
                   <p class="u-card-copy-xs">${esc(m.year)} &middot; ${esc(m.file_size || 'N/A')}</p>
                   <p class="u-list-copy">${esc(m.preview_text || '')}</p>
+                  ${m.file_path && materialKindFromPath(m.file_path) === 'video' ? `
+                    <div class="u-mt-sm">
+                      <video controls preload="metadata" class="material-video-player">
+                        <source src="/api/materials/${m.id}/stream">
+                        Your browser does not support video playback.
+                      </video>
+                    </div>` : ''}
                   <div class="u-card-inline-actions-wrap">
-                    ${getToken() ? `<a class="card-button u-card-button-link" href="/api/materials/${m.id}/download" download>
-                        <svg viewBox="0 0 16 16" fill="none" width="13" height="13" class="u-mini-svg-gap"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-                        Download PDF
-                      </a>` : `<a class="card-button u-card-button-link" href="/login">Login to download</a>`}
+                    ${getToken() ? (materialKindFromPath(m.file_path) === 'video'
+                      ? `<a class="card-button u-card-button-link" href="/api/materials/${m.id}/stream" target="_blank" rel="noopener">
+                          <svg viewBox="0 0 16 16" fill="none" width="13" height="13" class="u-mini-svg-gap"><path d="M6 4l6 4-6 4V4z" fill="currentColor"/></svg>
+                          Watch Tutorial
+                        </a>`
+                      : `<a class="card-button u-card-button-link" href="/api/materials/${m.id}/download" download>
+                          <svg viewBox="0 0 16 16" fill="none" width="13" height="13" class="u-mini-svg-gap"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                          Download File
+                        </a>`) : `<a class="card-button u-card-button-link" href="/login">Login to watch or download</a>`}
                     ${getToken() ? `<button class="card-button detail-bookmark-btn u-card-button-outline-link u-card-button-link" data-id="${m.id}">Save material</button>` : ''}
                   </div>
                 </div>`;
@@ -1760,10 +1778,15 @@
           <p class="result-card-preview">${esc(m.preview_text || '')}</p>
           <div class="result-card-footer">
             ${getToken() && m.file_path
-              ? `<a class="card-link u-link-maroon" href="/api/materials/${m.id}/download" download>
+              ? (materialKindFromPath(m.file_path) === 'video'
+                ? `<a class="card-link u-link-maroon" href="/api/materials/${m.id}/stream" target="_blank" rel="noopener">
+                    <svg viewBox="0 0 14 14" fill="none" width="12" height="12" class="u-mr-sm"><path d="M5 3l6 4-6 4V3z" fill="currentColor"/></svg>
+                    Watch Tutorial
+                  </a>`
+                : `<a class="card-link u-link-maroon" href="/api/materials/${m.id}/download" download>
                   <svg viewBox="0 0 14 14" fill="none" width="12" height="12" class="u-mr-sm"><path d="M7 1v7M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 11h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-                  Download PDF
-                </a>`
+                  Download File
+                </a>`)
               : `<span class="card-link u-link-muted">${m.file_path ? 'Login to download' : 'No file yet'}</span>`}
             <button class="card-link remove-bm u-bare-button-danger-sm" data-bm-id="${b.bookmark_id}">Remove</button>
           </div>
