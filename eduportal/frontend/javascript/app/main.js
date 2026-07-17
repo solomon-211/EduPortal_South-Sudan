@@ -177,7 +177,7 @@
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
   async function initDashboard() {
-    if (!getToken()) { window.location.href = '/'; return; }
+    const isAuthed = !!getToken();
     const user = getUser();
 
     const greetEl = document.getElementById('dashboard-greeting');
@@ -200,46 +200,52 @@
       });
     } catch (_) {}
 
-    try {
-      const [{ items: applications }, { items: notifications }] = await Promise.all([
-        api('/api/applications'),
-        api('/api/notifications'),
-      ]);
+    const appsEl = document.getElementById('dashboard-applications');
+    const alertsEl = document.getElementById('dashboard-notifications');
+    const appsCountEl = document.getElementById('stat-applications');
 
-      const appsEl = document.getElementById('dashboard-applications');
-      const alertsEl = document.getElementById('dashboard-notifications');
-      const appsCountEl = document.getElementById('stat-applications');
-      if (appsCountEl) appsCountEl.textContent = applications.length;
+    if (!isAuthed) {
+      if (appsCountEl) appsCountEl.textContent = '0';
+      if (appsEl) appsEl.innerHTML = '<p class="empty-text">Sign in to view your applications.</p>';
+      if (alertsEl) alertsEl.innerHTML = '<p class="empty-text">Sign in to view your notifications.</p>';
+    } else {
+      try {
+        const [{ items: applications }, { items: notifications }] = await Promise.all([
+          api('/api/applications'),
+          api('/api/notifications'),
+        ]);
 
-      if (appsEl) {
-        appsEl.innerHTML = applications.length
-          ? applications.slice(0, 4).map(app => `
-              <div class="snapshot-list-item dashboard-activity-item">
-                <div>
-                  <strong>${esc(app.title)}</strong>
-                  <span>${esc(app.provider || 'Scholarship program')} · Deadline ${esc(app.deadline)}</span>
-                </div>
-                <div>${appStatusBadge(app.status)}</div>
-              </div>`).join('')
-          : '<p class="empty-text">You have not submitted any applications yet. Browse scholarships to get started.</p>';
+        if (appsCountEl) appsCountEl.textContent = applications.length;
+
+        if (appsEl) {
+          appsEl.innerHTML = applications.length
+            ? applications.slice(0, 4).map(app => `
+                <div class="snapshot-list-item dashboard-activity-item">
+                  <div>
+                    <strong>${esc(app.title)}</strong>
+                    <span>${esc(app.provider || 'Scholarship program')} · Deadline ${esc(app.deadline)}</span>
+                  </div>
+                  <div>${appStatusBadge(app.status)}</div>
+                </div>`).join('')
+            : '<p class="empty-text">You have not submitted any applications yet. Browse scholarships to get started.</p>';
+        }
+
+        if (alertsEl) {
+          alertsEl.innerHTML = notifications.length
+            ? notifications.slice(0, 4).map(item => `
+                <div class="dashboard-activity-item">
+                  <div>
+                    <strong>${esc(item.title)}</strong>
+                    <span>${esc(item.body)}</span>
+                  </div>
+                </div>`).join('')
+            : '<p class="empty-text">No urgent alerts right now.</p>';
+        }
+      } catch (_) {
+        if (appsCountEl) appsCountEl.textContent = '0';
+        if (appsEl) appsEl.innerHTML = '<p class="empty-text">Your application history is unavailable right now.</p>';
+        if (alertsEl) alertsEl.innerHTML = '<p class="empty-text">Alerts are unavailable right now.</p>';
       }
-
-      if (alertsEl) {
-        alertsEl.innerHTML = notifications.length
-          ? notifications.slice(0, 4).map(item => `
-              <div class="dashboard-activity-item">
-                <div>
-                  <strong>${esc(item.title)}</strong>
-                  <span>${esc(item.body)}</span>
-                </div>
-              </div>`).join('')
-          : '<p class="empty-text">No urgent alerts right now.</p>';
-      }
-    } catch (_) {
-      const appsEl = document.getElementById('dashboard-applications');
-      const alertsEl = document.getElementById('dashboard-notifications');
-      if (appsEl) appsEl.innerHTML = '<p class="empty-text">Your application history is unavailable right now.</p>';
-      if (alertsEl) alertsEl.innerHTML = '<p class="empty-text">Alerts are unavailable right now.</p>';
     }
 
     try {
@@ -264,11 +270,17 @@
       }
     }
 
-    try {
-      const { items } = await api('/api/bookmarks');
-      const el = document.getElementById('stat-saved');
-      if (el) el.textContent = items.filter(b => b.item_type === 'school').length;
-    } catch (_) {}
+    const savedEl = document.getElementById('stat-saved');
+    if (!isAuthed) {
+      if (savedEl) savedEl.textContent = '0';
+    } else {
+      try {
+        const { items } = await api('/api/bookmarks');
+        if (savedEl) savedEl.textContent = items.filter(b => b.item_type === 'school').length;
+      } catch (_) {
+        if (savedEl) savedEl.textContent = '0';
+      }
+    }
   }
 
   // ── Directory ─────────────────────────────────────────────────────────────
@@ -2500,7 +2512,7 @@
   }
 
   // ── Boot ──────────────────────────────────────────────────────────────────
-  document.addEventListener('DOMContentLoaded', () => {
+  function bootApp() {
     const page = document.body.dataset.page || '';
 
     if (document.getElementById('login-form'))    initLogin();
@@ -2520,7 +2532,15 @@
     if (page === 'admin')            initAdmin();
     if (page === 'school-dashboard') initSchoolDashboard();
     if (page === 'ngo-dashboard')    initNGODashboard();
-  });
+  }
+
+  // main.js is loaded via a dynamic script tag from /static/app.js.
+  // If DOMContentLoaded already fired, run immediately.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootApp);
+  } else {
+    bootApp();
+  }
 
 })();
 

@@ -1,11 +1,8 @@
 ﻿from __future__ import annotations
 
 import os
-import sqlite3
-from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from pathlib import Path
 
 import bcrypt
 import jwt
@@ -14,89 +11,16 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.utils import secure_filename
 
-try:
-    import mysql.connector as mysql_connector
-except Exception:  # pragma: no cover - optional dependency for local SQLite runs
-    mysql_connector = None
+from auth.jwt_helpers import api_err, get_current_user, log_audit, make_token, require_auth, require_role
+from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES
+from db.connection import db_engine
+from db.queries import count, execute, get_db, query_all, query_one
+from db.schema import init_db
+from notifications.email import send_email
+from notifications.sms import send_sms
 
-BASE_DIR          = Path(__file__).resolve().parent.parent
-FRONTEND_DIR      = BASE_DIR / "frontend"
-HTML_DIR          = FRONTEND_DIR / "html"
-CSS_DIR           = FRONTEND_DIR / "css"
-JS_DIR            = FRONTEND_DIR / "javascript"
-ASSETS_DIR        = FRONTEND_DIR / "assets"
-DB_DIR            = BASE_DIR / "database"
-DB_PATH           = DB_DIR / "eduportal.sqlite3"
-MYSQL_HOST        = os.environ.get("MYSQL_HOST", "").strip()
-MYSQL_PORT        = int(os.environ.get("MYSQL_PORT", "3306"))
-MYSQL_USER        = os.environ.get("MYSQL_USER", "").strip()
-MYSQL_PASSWORD    = os.environ.get("MYSQL_PASSWORD", "")
-MYSQL_DATABASE    = os.environ.get("MYSQL_DATABASE", "").strip()
-JWT_SECRET        = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-change-in-prod")
-UPLOAD_FOLDER     = ASSETS_DIR / "avatars"
-MATERIALS_FOLDER  = ASSETS_DIR / "materials"
-ALLOWED_EXTENSIONS      = {"jpg", "jpeg", "png", "gif", "webp"}
-ALLOWED_MATERIAL_EXTS   = {"pdf"}
-MAX_AVATAR_BYTES         = 2 * 1024 * 1024   # 2 MB
-MAX_MATERIAL_BYTES       = 20 * 1024 * 1024  # 20 MB
+JWT_SECRET = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-change-in-prod")
 _DB_READY = False
-
-
-def _mysql_enabled() -> bool:
-    return bool(MYSQL_HOST and MYSQL_DATABASE and mysql_connector is not None)
-
-
-def _adapt_sql(sql: str) -> str:
-    if not _mysql_enabled():
-        return sql
-    sql = sql.replace("INSERT OR IGNORE INTO", "INSERT IGNORE INTO")
-    sql = sql.replace("INSERT OR REPLACE INTO", "REPLACE INTO")
-    sql = sql.replace("?", "%s")
-    return sql
-
-
-def _adapt_schema(sql: str) -> str:
-    if not _mysql_enabled():
-        return sql
-    sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "INT NOT NULL AUTO_INCREMENT PRIMARY KEY")
-    sql = sql.replace("TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
-    return sql
-
-
-class DBProxy:
-    def __init__(self, conn):
-        self._conn = conn
-        if not _mysql_enabled():
-            self._conn.row_factory = sqlite3.Row
-
-    def execute(self, sql: str, params: tuple = ()):
-        sql = _adapt_sql(sql)
-        if _mysql_enabled():
-            cur = self._conn.cursor(dictionary=True)
-            cur.execute(sql, params)
-            return cur
-        return self._conn.execute(sql, params)
-
-    def executescript(self, script: str):
-        if _mysql_enabled():
-            for statement in _adapt_schema(script).split(";"):
-                stmt = statement.strip()
-                if stmt:
-                    self.execute(stmt)
-            return None
-        return self._conn.executescript(script)
-
-    def commit(self):
-        self._conn.commit()
-
-    def rollback(self):
-        self._conn.rollback()
-
-    def close(self):
-        self._conn.close()
-
-    def __getattr__(self, name):
-        return getattr(self._conn, name)
 
 app = Flask(
     __name__,
@@ -104,7 +28,6 @@ app = Flask(
     static_folder=None,
 )
 app.config["MAX_CONTENT_LENGTH"] = MAX_MATERIAL_BYTES
-DB_DIR.mkdir(parents=True, exist_ok=True)
 
 limiter = Limiter(
     get_remote_address,
@@ -164,395 +87,11 @@ def static_files(filename: str):
 
     return jsonify({"error": "Not found"}), 404
 
-# ── DB helpers ────────────────────────────────────────────────────────────────
-
-@contextmanager
-def get_db():
-    if _mysql_enabled():
-        conn = mysql_connector.connect(  # type: ignore[union-attr]
-            host=MYSQL_HOST,
-            port=MYSQL_PORT,
-            user=MYSQL_USER,
-            password=MYSQL_PASSWORD,
-            database=MYSQL_DATABASE,
-            autocommit=False,
-        )
-    else:
-        conn = sqlite3.connect(DB_PATH)
-    proxy = DBProxy(conn)
-    try:
-        yield proxy
-        proxy.commit()
-    except Exception:
-        proxy.rollback()
-        raise
-    finally:
-        proxy.close()
-
-
-def _table_columns(db, table: str) -> set[str]:
-    if _mysql_enabled():
-        cur = db.execute(
-            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=?",
-            (MYSQL_DATABASE, table),
-        )
-        return {row["COLUMN_NAME"] if isinstance(row, dict) else row[0] for row in cur.fetchall()}
-    return {row[1] for row in db.execute(f"PRAGMA table_info({table})").fetchall()}
-
-def query_all(sql: str, params: tuple = ()) -> list[dict]:
-    with get_db() as db:
-        return [dict(r) for r in db.execute(sql, params).fetchall()]
-
-def query_one(sql: str, params: tuple = ()) -> dict | None:
-    with get_db() as db:
-        row = db.execute(sql, params).fetchone()
-    return dict(row) if row else None
-
-def execute(sql: str, params: tuple = ()) -> int:
-    with get_db() as db:
-        cur = db.execute(sql, params)
-        return cur.lastrowid or 0
-
-def count(sql: str, params: tuple = ()) -> int:
-    r = query_one(sql, params)
-    return r["count"] if r else 0
-
-
-def init_db() -> None:
-    with get_db() as db:
-        # Schema migration: add file_path to materials if missing
-        mcols = list(_table_columns(db, "materials"))
-        if "file_path" not in mcols and mcols:  # table exists
-            try:
-                db.execute("ALTER TABLE materials ADD COLUMN file_path TEXT")
-            except Exception:
-                pass
-        schema = _adapt_schema("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                email TEXT UNIQUE,
-                phone TEXT UNIQUE,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'student',
-                state TEXT NOT NULL DEFAULT '',
-                county TEXT NOT NULL DEFAULT '',
-                verified INTEGER NOT NULL DEFAULT 1,
-                notify_email INTEGER NOT NULL DEFAULT 1,
-                notify_sms INTEGER NOT NULL DEFAULT 1,
-                notify_inapp INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS schools (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                state TEXT NOT NULL,
-                county TEXT NOT NULL,
-                level TEXT NOT NULL,
-                type TEXT NOT NULL DEFAULT 'mixed',
-                curriculum TEXT NOT NULL DEFAULT 'National',
-                contact_name TEXT NOT NULL DEFAULT '',
-                phone TEXT NOT NULL DEFAULT '',
-                email TEXT,
-                capacity INTEGER,
-                status TEXT NOT NULL DEFAULT 'open',
-                enrollment INTEGER DEFAULT 0,
-                language TEXT DEFAULT 'English',
-                boarding TEXT DEFAULT 'Day',
-                hours TEXT,
-                description TEXT,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS admission_requirements (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                school_id INTEGER NOT NULL,
-                item_label TEXT NOT NULL,
-                is_required INTEGER NOT NULL DEFAULT 1,
-                notes TEXT,
-                FOREIGN KEY (school_id) REFERENCES schools(id)
-            );
-            CREATE TABLE IF NOT EXISTS materials (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                subject TEXT NOT NULL,
-                grade TEXT NOT NULL,
-                year INTEGER NOT NULL,
-                type TEXT NOT NULL,
-                file_size TEXT,
-                preview_text TEXT,
-                uploaded_by TEXT,
-                approved INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS announcements (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                body TEXT NOT NULL,
-                source_type TEXT NOT NULL,
-                source_id INTEGER,
-                audience TEXT NOT NULL,
-                expires_at TEXT,
-                approved INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS ngos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                org_name TEXT NOT NULL,
-                contact TEXT NOT NULL,
-                email TEXT,
-                phone TEXT,
-                description TEXT,
-                verified INTEGER NOT NULL DEFAULT 1
-            );
-            CREATE TABLE IF NOT EXISTS scholarships (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ngo_id INTEGER,
-                title TEXT NOT NULL,
-                description TEXT NOT NULL,
-                eligibility TEXT NOT NULL DEFAULT '',
-                deadline TEXT NOT NULL,
-                how_to_apply TEXT NOT NULL DEFAULT '',
-                required_docs TEXT,
-                external_link TEXT,
-                approved INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (ngo_id) REFERENCES ngos(id)
-            );
-            CREATE TABLE IF NOT EXISTS applications (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                scholarship_id INTEGER NOT NULL,
-                status TEXT NOT NULL DEFAULT 'submitted',
-                note TEXT,
-                applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, scholarship_id),
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (scholarship_id) REFERENCES scholarships(id)
-            );
-            CREATE TABLE IF NOT EXISTS bookmarks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                item_type TEXT NOT NULL,
-                item_id INTEGER NOT NULL,
-                saved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, item_type, item_id)
-            );
-            CREATE TABLE IF NOT EXISTS audit_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                admin_id INTEGER,
-                action TEXT NOT NULL,
-                target_type TEXT NOT NULL,
-                target_id INTEGER,
-                note TEXT,
-                timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        db.executescript(schema)
-        scholarship_columns = _table_columns(db, "scholarships")
-        if "required_docs" not in scholarship_columns:
-            db.execute("ALTER TABLE scholarships ADD COLUMN required_docs TEXT")
-        if "external_link" not in scholarship_columns:
-            db.execute("ALTER TABLE scholarships ADD COLUMN external_link TEXT")
-        ngo_columns = _table_columns(db, "ngos")
-        if "description" not in ngo_columns:
-            db.execute("ALTER TABLE ngos ADD COLUMN description TEXT")
-        # Safe migrations — add columns that may not exist in older DBs
-        _migrate(db)
-        db.execute("""
-            CREATE TABLE IF NOT EXISTS password_resets (
-                user_id INTEGER PRIMARY KEY,
-                token TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        # Indexes for performance
-        db.executescript("""
-            CREATE INDEX IF NOT EXISTS idx_users_email   ON users(email);
-            CREATE INDEX IF NOT EXISTS idx_users_phone   ON users(phone);
-            CREATE INDEX IF NOT EXISTS idx_schools_state ON schools(state);
-            CREATE INDEX IF NOT EXISTS idx_apps_user     ON applications(user_id);
-            CREATE INDEX IF NOT EXISTS idx_apps_sch      ON applications(scholarship_id);
-            CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id);
-            CREATE INDEX IF NOT EXISTS idx_materials_approved ON materials(approved);
-            CREATE INDEX IF NOT EXISTS idx_scholarships_approved ON scholarships(approved);
-        """)
-        db.execute("""
-            CREATE TABLE IF NOT EXISTS invitations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                token TEXT NOT NULL UNIQUE,
-                role TEXT NOT NULL,
-                ref_id INTEGER,
-                email TEXT NOT NULL,
-                used INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        school_count = db.execute("SELECT COUNT(*) AS count FROM schools").fetchone()
-        school_count_val = school_count["count"] if isinstance(school_count, dict) else school_count[0]
-        if school_count_val == 0:
-            _seed(db)
-        db.commit()
-
-
-def _migrate(db) -> None:
-    migrations = [
-        "ALTER TABLE scholarships ADD COLUMN required_docs TEXT DEFAULT ''",
-        "ALTER TABLE scholarships ADD COLUMN external_link TEXT DEFAULT ''",
-        "ALTER TABLE ngos ADD COLUMN description TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN notify_email INTEGER NOT NULL DEFAULT 1",
-        "ALTER TABLE users ADD COLUMN notify_sms INTEGER NOT NULL DEFAULT 1",
-        "ALTER TABLE users ADD COLUMN notify_inapp INTEGER NOT NULL DEFAULT 1",
-        "ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT NULL",
-        "ALTER TABLE users ADD COLUMN grade TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN school_name TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN child_school TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN child_grade TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN subjects TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN institution TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN experience_years INTEGER DEFAULT NULL",
-        "ALTER TABLE users ADD COLUMN managed_school TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN position TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN school_id INTEGER DEFAULT NULL",
-        "ALTER TABLE schools ADD COLUMN type TEXT NOT NULL DEFAULT 'mixed'",
-        """CREATE TABLE IF NOT EXISTS applications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            scholarship_id INTEGER NOT NULL,
-            status TEXT NOT NULL DEFAULT 'submitted',
-            note TEXT,
-            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, scholarship_id)
-        )""",
-    ]
-    for sql in migrations:
-        try:
-            db.execute(sql)
-        except Exception:
-            pass
-
-
-def _seed(db) -> None:
-    pw = bcrypt.hashpw(b"Admin1234!", bcrypt.gensalt()).decode()
-    db.execute(
-        "INSERT OR IGNORE INTO users (name,email,phone,password_hash,role,state,county,verified) VALUES (?,?,?,?,?,?,?,1)",
-        ("Platform Admin", "admin@eduportal.ss", "+211000000000", pw, "admin", "Central Equatoria", "Juba"),
-    )
-    schools = [
-        ("Juba Day Secondary School","Central Equatoria","Juba","secondary","mixed","National","Amina Mayen","+211 912 000 101","juba.day@example.com",1200,"open",980,"English","Day","7:30 AM – 3:30 PM","A long-running public secondary school serving central Juba."),
-        ("Bor Primary School","Jonglei","Bor South","primary","mixed","National","Peter Aken","+211 912 000 102","bor.primary@example.com",800,"open",640,"English","Day","7:00 AM – 1:00 PM","A community school with broad catchment across Bor South."),
-        ("Wau Girls Secondary School","Western Bahr el Ghazal","Wau","secondary","girls","National","Grace Mahad","+211 912 000 103","wau.girls@example.com",900,"open",725,"English","Boarding","8:00 AM – 4:00 PM","Girls-focused secondary school with boarding support."),
-        ("Rumbek Academy","Lakes","Rumbek East","secondary","mixed","National","Deng Atar","+211 912 000 104","rumbek.academy@example.com",1000,"open",810,"English","Day","7:30 AM – 3:30 PM","Mixed secondary school known for exam preparation."),
-        ("Malakal Model School","Upper Nile","Malakal","primary","mixed","National","Hilda Acuil","+211 912 000 105","malakal.model@example.com",700,"limited",560,"English","Day","7:00 AM – 1:00 PM","A model primary school near the Nile corridor."),
-        ("Yambio Community School","Western Equatoria","Yambio","primary","mixed","National","Martin Yel","+211 912 000 106","yambio.community@example.com",650,"open",520,"English","Day","7:00 AM – 1:00 PM","Community-rooted school with simple admission requirements."),
-        ("Kuajok Technical School","Warrap","Kuajok","secondary","mixed","National","Rebecca Chuol","+211 912 000 107","kuajok.tech@example.com",950,"open",760,"English","Day","8:00 AM – 4:00 PM","Technical learning and practical sciences focus."),
-        ("Aweil Girls Primary","Northern Bahr el Ghazal","Aweil East","primary","girls","National","Mayen Chol","+211 912 000 108","aweil.girls@example.com",600,"open",480,"English","Day","7:00 AM – 1:00 PM","Primary school with strong parent engagement."),
-        ("Torit Preparatory School","Eastern Equatoria","Torit","secondary","mixed","National","James Lado","+211 912 000 109","torit.prep@example.com",850,"open",690,"English","Day","7:30 AM – 3:00 PM","Prepares learners for national examinations."),
-        ("Bentiu Bridge School","Unity","Bentiu","primary","mixed","National","Martha Kueth","+211 912 000 110","bentiu.bridge@example.com",500,"open",410,"English","Day","7:00 AM – 1:00 PM","Stable access point for learning in Unity state."),
-    ]
-    school_ids: list[int] = []
-    for s in schools:
-        cur = db.execute(
-            "INSERT INTO schools (name,state,county,level,type,curriculum,contact_name,phone,email,capacity,status,enrollment,language,boarding,hours,description) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", s)
-        school_ids.append(cur.lastrowid or 0)
-    req_sets = [
-        [("Birth certificate or baptism certificate",1,"Bring original plus one photocopy."),("Two passport photos",1,"Recent photos with plain background."),("Last report card",1,"Required for transfer applicants.")],
-        [("Child health card",1,"Only for P1 intake."),("Copy of parent ID",1,"Any official identity document accepted.")],
-        [("Completed admission form",1,None),("Transfer letter",0,"Needed only when moving from another school."),("Two passport photos",1,None)],
-    ]
-    for i, sid in enumerate(school_ids):
-        for label, req, notes in req_sets[i % len(req_sets)]:
-            db.execute("INSERT INTO admission_requirements (school_id,item_label,is_required,notes) VALUES (?,?,?,?)",(sid,label,req,notes))
-    for title,subject,grade,year,mtype,size,preview in [
-        ("Mathematics P8 Past Paper 2024","Mathematics","P8",2024,"past paper","1.8 MB","Arithmetic, geometry, and measurement questions."),
-        ("English S4 Study Notes","English","S4",2023,"study guide","900 KB","Revision notes for comprehension and essay writing."),
-        ("Science S6 Teacher Notes","Science","S6",2024,"teacher note","2.3 MB","Practical science revision notes for senior learners."),
-        ("Social Studies P5 Past Paper","Social Studies","P5",2022,"past paper","1.1 MB","A lightweight practice paper for primary learners."),
-    ]:
-        db.execute("INSERT INTO materials (title,subject,grade,year,type,file_size,preview_text,uploaded_by,approved) VALUES (?,?,?,?,?,?,?,?,1)",
-                   (title,subject,grade,year,mtype,size,preview,"admin@eduportal.ss"))
-    for title,body,source,audience,expires in [
-        ("2026 National Exam Registration","Registration for national exams is open across all states until 30 June.","Ministry","students","2026-06-30"),
-        ("School Holiday Notice","All schools in Jonglei should observe the updated weather-related holiday schedule.","School","parents","2026-06-10"),
-        ("Teacher Workshop in Juba","SSNEC will host a curriculum support workshop for teachers next week.","SSNEC","teachers","2026-05-28"),
-    ]:
-        db.execute("INSERT INTO announcements (title,body,source_type,audience,expires_at,approved) VALUES (?,?,?,?,?,1)",(title,body,source,audience,expires))
-    ngo_ids: list[int] = []
-    for org,contact,email,phone,desc in [
-        ("Future South Sudan Trust","Grace Atong","contact@futuress.org","+211 912 200 111","Supporting secondary learners across South Sudan since 2018."),
-        ("Girls in STEM Initiative","Luka Bullen","info@girlsinstem.ss","+211 912 200 112","Empowering girls to pursue science and technology careers."),
-    ]:
-        cur = db.execute("INSERT INTO ngos (org_name,contact,email,phone,description,verified) VALUES (?,?,?,?,?,1)",(org,contact,email,phone,desc))
-        ngo_ids.append(cur.lastrowid or 0)
-    for ngo_id,title,desc,elig,deadline,how,docs,link in [
-        (ngo_ids[0],"Secondary School Support Grant","Partial tuition support for secondary learners with strong attendance.","Grade 9–12, South Sudan resident, not already funded","2026-07-20","Complete the online application and attach your latest report card.","Report card, birth certificate, recommendation letter","https://futuress.org/apply"),
-        (ngo_ids[1],"Girls STEM Bursary","Supports girls entering science and technology pathways.","Female learners in S4–S6, any state","2026-08-15","Submit the bursary form and a short motivation letter.","Motivation letter, school ID, report card","https://girlsinstem.ss/bursary"),
-        (ngo_ids[0],"Rural Materials Pack","Book and stationery support for learners in remote counties.","Primary learners in rural counties","2026-06-25","Contact your school admin for the referral form.","Referral form from school admin",None),
-    ]:
-        db.execute("INSERT INTO scholarships (ngo_id,title,description,eligibility,deadline,how_to_apply,required_docs,external_link,approved) VALUES (?,?,?,?,?,?,?,?,1)",
-                   (ngo_id,title,desc,elig,deadline,how,docs,link))
-
-
-# ── Auth helpers ──────────────────────────────────────────────────────────────
-
-def _make_token(user: dict) -> str:
-    payload = {
-        "sub": str(user["id"]),
-        "name": user["name"],
-        "role": user["role"],
-        "exp": datetime.now(timezone.utc) + timedelta(hours=24),
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
-
-def _get_current_user() -> dict | None:
-    header = request.headers.get("Authorization", "")
-    if not header.startswith("Bearer "):
-        return None
-    try:
-        payload = jwt.decode(header[7:], JWT_SECRET, algorithms=["HS256"])
-    except jwt.PyJWTError:
-        return None
-    user = query_one("SELECT * FROM users WHERE id=?", (payload["sub"],))
-    if not user or int(user.get("verified", 0)) < 1:
-        return None
-    return user
-
-def require_auth(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        user = _get_current_user()
-        if not user:
-            return jsonify({"error": "Authentication required"}), 401
-        request.current_user = user  # type: ignore[attr-defined]
-        return fn(*args, **kwargs)
-    return wrapper
-
-def require_role(*roles: str):
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            user = _get_current_user()
-            if not user:
-                return jsonify({"error": "Authentication required"}), 401
-            if user["role"] not in roles and user["role"] != "admin":
-                return jsonify({"error": "Insufficient permissions"}), 403
-            request.current_user = user  # type: ignore[attr-defined]
-            return fn(*args, **kwargs)
-        return wrapper
-    return decorator
-
-def api_err(msg: str, code: int = 400):
-    return jsonify({"error": msg}), code
-
-def log_audit(admin_id: int, action: str, target_type: str, target_id: int, note: str = "") -> None:
-    execute("INSERT INTO audit_log (admin_id,action,target_type,target_id,note) VALUES (?,?,?,?,?)",
-            (admin_id, action, target_type, target_id, note))
-
 @app.before_request
 def ensure_db():
     global _DB_READY
+    if request.endpoint == "healthz":
+        return
     if not _DB_READY:
         init_db()
         _DB_READY = True
@@ -664,7 +203,7 @@ def api_login():
         valid = False
     if not valid:
         return api_err("Invalid credentials", 401)
-    return jsonify({"token": _make_token(user), "user": {"id": user["id"], "name": user["name"], "role": user["role"], "state": user["state"]}})
+    return jsonify({"token": make_token(user), "user": {"id": user["id"], "name": user["name"], "role": user["role"], "state": user["state"]}})
 
 @app.route("/api/register", methods=["POST"])
 @limiter.limit("5 per minute")
@@ -691,7 +230,9 @@ def api_register():
         (name, email, phone, pw_hash, role, state, county),
     )
     user = query_one("SELECT * FROM users WHERE id=?", (uid,))
-    return jsonify({"token": _make_token(user), "user": {"id": user["id"], "name": user["name"], "role": user["role"]}}), 201
+    if not user:
+        return api_err("Registration failed", 500)
+    return jsonify({"token": make_token(user), "user": {"id": user["id"], "name": user["name"], "role": user["role"]}}), 201
 
 @app.route("/api/me")
 @require_auth
@@ -915,9 +456,10 @@ def api_materials_submit():
     doc_type = (data.get("type") or "").strip()
     if not all([title, subject, grade, year, doc_type]):
         return api_err("title, subject, grade, year, and type are required")
+    year_value = int(str(year))
     mid = execute(
         "INSERT INTO materials (title,subject,grade,year,type,uploaded_by,approved) VALUES (?,?,?,?,?,?,0)",
-        (title, subject, grade, int(year), doc_type, u["email"] or u["phone"]),
+        (title, subject, grade, year_value, doc_type, u["email"] or u["phone"]),
     )
     return jsonify({"message": "Material submitted for review", "id": mid}), 201
 
@@ -1235,8 +777,15 @@ def api_bookmarks():
         item_id = int(item_id)
     except (ValueError, TypeError):
         return api_err("item_id must be a number")
-    execute("INSERT OR IGNORE INTO bookmarks (user_id,item_type,item_id) VALUES (?,?,?)",
-            (u["id"], item_type, item_id))
+    if db_engine() == "mysql":
+        execute("INSERT IGNORE INTO bookmarks (user_id,item_type,item_id) VALUES (?,?,?)", (u["id"], item_type, item_id))
+    else:
+        execute(
+            """INSERT INTO bookmarks (user_id,item_type,item_id)
+               VALUES (?,?,?)
+               ON CONFLICT (user_id, item_type, item_id) DO NOTHING""",
+            (u["id"], item_type, item_id),
+        )
     return jsonify({"message": "Saved"})
 
 @app.route("/api/bookmarks/<int:bookmark_id>", methods=["DELETE"])
@@ -1500,10 +1049,21 @@ def api_forgot_password():
     if user:
         import secrets
         token = secrets.token_urlsafe(32)
-        execute(
-            "INSERT OR REPLACE INTO password_resets (user_id, token, created_at) VALUES (?,?,CURRENT_TIMESTAMP)",
-            (user["id"], token),
-        )
+        if db_engine() == "mysql":
+            execute(
+                """INSERT INTO password_resets (user_id, token, created_at)
+                   VALUES (?,?,CURRENT_TIMESTAMP)
+                   ON DUPLICATE KEY UPDATE token=VALUES(token), created_at=CURRENT_TIMESTAMP""",
+                (user["id"], token),
+            )
+        else:
+            execute(
+                """INSERT INTO password_resets (user_id, token, created_at)
+                   VALUES (?,?,CURRENT_TIMESTAMP)
+                   ON CONFLICT (user_id)
+                   DO UPDATE SET token=EXCLUDED.token, created_at=CURRENT_TIMESTAMP""",
+                (user["id"], token),
+            )
         # Send via email if available, SMS if not
         email_sent = sms_sent = False
         reset_msg = f"Your EduPortal password reset code is: {token}\n\nThis code expires in 1 hour."
@@ -1530,15 +1090,28 @@ def api_reset_password():
         return api_err("user_id, token, and new_password are required")
     if len(new_pass) < 8:
         return api_err("Password must be at least 8 characters")
+    try:
+        user_id_int = int(str(user_id))
+    except (TypeError, ValueError):
+        return api_err("user_id must be a number")
     row = query_one(
-        "SELECT * FROM password_resets WHERE user_id=? AND token=? AND datetime(created_at,'+1 hour') > datetime('now')",
-        (int(user_id), token),
+        "SELECT * FROM password_resets WHERE user_id=? AND token=?",
+        (user_id_int, token),
     )
     if not row:
         return api_err("Invalid or expired reset token", 400)
+    created_at_raw = str(row.get("created_at") or "").replace("Z", "+00:00")
+    try:
+        created_at = datetime.fromisoformat(created_at_raw)
+    except ValueError:
+        created_at = datetime.now(timezone.utc) - timedelta(hours=2)
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) - created_at > timedelta(hours=1):
+        return api_err("Invalid or expired reset token", 400)
     new_hash = bcrypt.hashpw(new_pass.encode(), bcrypt.gensalt()).decode()
-    execute("UPDATE users SET password_hash=? WHERE id=?", (new_hash, int(user_id)))
-    execute("DELETE FROM password_resets WHERE user_id=?", (int(user_id),))
+    execute("UPDATE users SET password_hash=? WHERE id=?", (new_hash, user_id_int))
+    execute("DELETE FROM password_resets WHERE user_id=?", (user_id_int,))
     return jsonify({"message": "Password reset successfully. You can now sign in."})
 
 # ── Notifications (bell) ──────────────────────────────────────────────────────
@@ -1547,24 +1120,28 @@ def api_reset_password():
 @require_auth
 def api_notifications():
     u = request.current_user  # type: ignore[attr-defined]
-    today = datetime.now(timezone.utc).date().isoformat()
+    now_utc = datetime.now(timezone.utc)
+    tomorrow = (now_utc + timedelta(days=1)).date().isoformat()
+    next_week = (now_utc + timedelta(days=7)).date().isoformat()
+    recent_cutoff = (now_utc - timedelta(days=7)).isoformat()
     # Scholarship deadlines within 7 days
     rows = query_all(
         """SELECT s.id, s.title, s.deadline,
-                  CASE WHEN date(s.deadline) = date('now','+1 day') THEN 1
-                       WHEN date(s.deadline) <= date('now','+7 days') THEN 7
+                  CASE WHEN CAST(s.deadline AS DATE) = CAST(? AS DATE) THEN 1
+                       WHEN CAST(s.deadline AS DATE) <= CAST(? AS DATE) THEN 7
                        ELSE 0 END AS days_left
            FROM scholarships s
            JOIN applications a ON a.scholarship_id=s.id
            WHERE a.user_id=? AND s.approved=1
-             AND date(s.deadline) >= date('now')
-             AND date(s.deadline) <= date('now','+7 days')
+             AND CAST(s.deadline AS DATE) >= CURRENT_DATE
+             AND CAST(s.deadline AS DATE) <= CAST(? AS DATE)
            ORDER BY s.deadline ASC""",
-        (u["id"],),
+        (tomorrow, next_week, u["id"], next_week),
     )
     # Unread announcements (last 7 days)
     ann = query_all(
-        "SELECT id,title,created_at FROM announcements WHERE approved=1 AND datetime(created_at) >= datetime('now','-7 days') ORDER BY created_at DESC LIMIT 5"
+        "SELECT id,title,created_at FROM announcements WHERE approved=1 AND created_at >= ? ORDER BY created_at DESC LIMIT 5",
+        (recent_cutoff,),
     )
     notifications = []
     for r in rows:
@@ -1715,7 +1292,9 @@ def api_accept_invite():
     # Mark invitation as used
     execute("UPDATE invitations SET used=1 WHERE token=?", (token,))
     user = query_one("SELECT * FROM users WHERE id=?", (uid,))
-    return jsonify({"token": _make_token(user), "user": {"id": user["id"], "name": user["name"], "role": user["role"]}}), 201
+    if not user:
+        return api_err("Account creation failed", 500)
+    return jsonify({"token": make_token(user), "user": {"id": user["id"], "name": user["name"], "role": user["role"]}}), 201
 
 
 @app.route("/api/invitations/check")
@@ -1914,7 +1493,23 @@ def api_my_ngo_update():
 
 @app.route("/healthz")
 def healthz():
-    return jsonify({"status": "ok"})
+    engine = db_engine()
+    try:
+        with get_db() as db:
+            db.execute("SELECT 1")
+        return jsonify({
+            "status": "ok",
+            "database": {"engine": engine, "connected": True},
+        })
+    except Exception as exc:
+        return jsonify({
+            "status": "degraded",
+            "database": {
+                "engine": engine,
+                "connected": False,
+                "error": str(exc),
+            },
+        }), 503
 
 @app.errorhandler(404)
 def not_found(_):

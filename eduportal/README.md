@@ -17,7 +17,7 @@ eduportal/
 ├─ backend/
 │  └─ app.py
 ├─ database/
-│  └─ eduportal.sqlite3
+│  └─ (MySQL schema/migration resources)
 ├─ frontend/
 │  ├─ html/
 │  │  ├─ login.html
@@ -106,7 +106,8 @@ Static binary uploads are kept in `frontend/assets/`:
 
 ### database/
 
-- Local SQLite database file: `eduportal.sqlite3`
+- MySQL schema and migration resources.
+- Runtime data is stored in your configured MySQL database.
 
 ### frontend/
 
@@ -144,9 +145,63 @@ python backend\app.py
 
 ## Database Mode
 
-Default mode: SQLite (`database/eduportal.sqlite3`).
+This project now supports PostgreSQL as the primary production database.
 
-MySQL can be enabled using environment variables:
+Backend selection order is:
+
+1. PostgreSQL (when configured)
+2. MySQL (legacy compatibility)
+3. SQLite fallback (`database/eduportal.sqlite3`) for local development
+
+### PostgreSQL (recommended)
+
+Set either `DATABASE_URL` or the individual PostgreSQL variables below before starting the backend.
+
+- `DATABASE_URL` (example: `postgresql://user:pass@localhost:5432/eduportal`)
+
+or
+
+- `POSTGRES_HOST`
+- `POSTGRES_PORT`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `POSTGRES_DATABASE`
+- `POSTGRES_SSLMODE` (optional, default: `prefer`)
+
+Quick setup:
+
+1. Run `database/postgres_setup.sql` in `psql` as a superuser.
+2. Copy `.env.example` to `.env`.
+3. Update `.env` values (especially `POSTGRES_PASSWORD`).
+4. Start the backend with `python backend\app.py`.
+
+Example:
+
+```powershell
+cd "c:\Users\HP\OneDrive\Desktop\EduPortal South Sudan\EduPortal_South-Sudan\eduportal"
+Copy-Item .env.example .env
+
+# Run SQL bootstrap as postgres superuser
+psql -U postgres -f .\database\postgres_setup.sql
+
+python .\backend\app.py
+```
+
+Verify active DB engine and connectivity:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:5000/healthz
+```
+
+Expected shape:
+
+- `status: ok`
+- `database.engine: postgres`
+- `database.connected: true`
+
+### MySQL (legacy)
+
+If PostgreSQL is not configured, MySQL is used when these are set:
 
 - `MYSQL_HOST`
 - `MYSQL_PORT`
