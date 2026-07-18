@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 from contextlib import contextmanager
+
+log = logging.getLogger(__name__)
 
 try:
     import mysql.connector as mysql_connector
@@ -40,10 +43,10 @@ def _postgres_enabled() -> bool:
 def db_engine() -> str:
     if _ENGINE_OVERRIDE:
         return _ENGINE_OVERRIDE
-    if _postgres_enabled():
-        return "postgres"
     if _mysql_enabled():
         return "mysql"
+    if _postgres_enabled():
+        return "postgres"
     return "sqlite"
 
 
@@ -113,7 +116,6 @@ class DBProxy:
 @contextmanager
 def get_db():
     engine = db_engine()
-    db = None
     try:
         if engine == "postgres":
             if DATABASE_URL:
@@ -134,14 +136,23 @@ def get_db():
             )
             db = DBProxy(conn, "mysql")
         else:
-            conn = sqlite3.connect(SQLITE_PATH)
+            conn = sqlite3.connect(str(SQLITE_PATH))
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA foreign_keys = ON")
             db = conn
-    except Exception:
-        global _ENGINE_OVERRIDE
-        _ENGINE_OVERRIDE = "sqlite"
-        conn = sqlite3.connect(SQLITE_PATH)
+    except Exception as exc:
+        # Only fall back to SQLite when the configured engine is NOT postgres/mysql.
+        # If postgres/mysql is explicitly configured, surface the error immediately
+        # so misconfigured credentials are caught at startup, not silently ignored.
+        if engine in {"postgres", "mysql"}:
+            log.critical(
+                "Cannot connect to %s: %s — check your .env credentials and ensure "
+                "the server is running. Refusing to fall back to SQLite.",
+                engine, exc,
+            )
+            raise
+        log.warning("DB connection failed (%s), falling back to SQLite: %s", engine, exc)
+        conn = sqlite3.connect(str(SQLITE_PATH))
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         db = conn

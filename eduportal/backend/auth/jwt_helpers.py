@@ -60,6 +60,27 @@ def require_role(*roles: str):
     return decorator
 
 
+def require_permission(action: str):
+    """Check role_permissions table. admin role bypasses the table entirely."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            user = get_current_user()
+            if not user:
+                return jsonify({"error": "Authentication required"}), 401
+            if user["role"] != "admin":
+                row = query_one(
+                    "SELECT 1 FROM role_permissions WHERE role=%s AND action=%s",
+                    (user["role"], action),
+                )
+                if not row:
+                    return jsonify({"error": "Insufficient permissions"}), 403
+            request.current_user = user  # type: ignore[attr-defined]
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 def api_err(msg: str, code: int = 400):
     return jsonify({"error": msg}), code
 

@@ -22,6 +22,7 @@ from db.queries import count, execute, get_db, query_all, query_one
 from db.schema import init_db
 from notifications.email import send_email
 from notifications.sms import send_sms
+from storage import save_file, public_url as storage_url, using_s3
 
 JWT_SECRET = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-change-in-prod")
 _DB_READY = False
@@ -306,10 +307,9 @@ def api_me_avatar():
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if ext not in ALLOWED_EXTENSIONS:
         return api_err("Only JPG, PNG, GIF, or WEBP files are allowed")
-    UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
     filename = f"user_{u['id']}.{ext}"
-    file.save(str(UPLOAD_FOLDER / filename))
-    avatar_url = f"/static/avatars/{filename}"
+    stored = save_file(UPLOAD_FOLDER, filename, file.stream)
+    avatar_url = storage_url(f"/static/avatars/{filename}") if not using_s3() else storage_url(stored)
     execute("UPDATE users SET avatar=? WHERE id=?", (avatar_url, u["id"]))
     return jsonify({"avatar": avatar_url})
 
@@ -530,14 +530,19 @@ def api_material_upload_file(material_id: int):
         return api_err("Only PDF, MP4, WebM, OGG, or M4V files are allowed")
     if ext in VIDEO_EXTENSIONS and not _is_valid_video(f.stream):
         return api_err("File content does not match a recognised video format", 400)
-    MATERIALS_FOLDER.mkdir(parents=True, exist_ok=True)
     safe_name = f"material_{material_id}_{secure_filename(f.filename)}"
-    save_path = MATERIALS_FOLDER / safe_name
-    f.save(str(save_path))
-    file_size = f"{save_path.stat().st_size // 1024} KB"
+    # Read into memory once so we can get size and still pass stream to storage
+    data = f.stream.read()
+    file_size = f"{len(data) // 1024} KB"
+    import io
+    stored = save_file(MATERIALS_FOLDER, safe_name, io.BytesIO(data))
+    if using_s3():
+        file_path = storage_url(stored)
+    else:
+        file_path = f"/static/materials/{safe_name}"
     execute("UPDATE materials SET file_path=?, file_size=? WHERE id=?",
-            (f"/static/materials/{safe_name}", file_size, material_id))
-    return jsonify({"message": "File uploaded", "file_path": f"/static/materials/{safe_name}"})
+            (file_path, file_size, material_id))
+    return jsonify({"message": "File uploaded", "file_path": file_path})
 
 
 @app.route("/api/materials/<int:material_id>/stream")
