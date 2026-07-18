@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 import os
@@ -17,8 +17,8 @@ log = logging.getLogger(__name__)
 
 from auth.jwt_helpers import api_err, get_current_user, log_audit, make_token, require_auth, require_role
 from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES
-from db.connection import db_engine
-from db.queries import count, execute, get_db, query_all, query_one
+from db.connection import get_db, close_conn
+from db.queries import count, execute, query_all, query_one
 from db.schema import init_db
 from notifications.email import send_email
 from notifications.sms import send_sms
@@ -79,6 +79,10 @@ limiter = Limiter(
     storage_uri="memory://",
 )
 
+@app.teardown_appcontext
+def teardown_db(exc: BaseException | None) -> None:
+    close_conn(exc)
+
 @app.after_request
 def add_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -133,7 +137,7 @@ def static_files(filename: str):
 @app.before_request
 def ensure_db():
     global _DB_READY
-    if request.endpoint == "healthz":
+    if request.endpoint in {"healthz", "static_files"}:
         return
     if not _DB_READY:
         init_db()
@@ -851,15 +855,12 @@ def api_bookmarks():
         item_id = int(item_id)
     except (ValueError, TypeError):
         return api_err("item_id must be a number")
-    if db_engine() == "mysql":
-        execute("INSERT IGNORE INTO bookmarks (user_id,item_type,item_id) VALUES (?,?,?)", (u["id"], item_type, item_id))
-    else:
-        execute(
-            """INSERT INTO bookmarks (user_id,item_type,item_id)
-               VALUES (?,?,?)
-               ON CONFLICT (user_id, item_type, item_id) DO NOTHING""",
-            (u["id"], item_type, item_id),
-        )
+    execute(
+        """INSERT INTO bookmarks (user_id,item_type,item_id)
+           VALUES (?,?,?)
+           ON CONFLICT (user_id, item_type, item_id) DO NOTHING""",
+        (u["id"], item_type, item_id),
+    )
     return jsonify({"message": "Saved"})
 
 @app.route("/api/bookmarks/<int:bookmark_id>", methods=["DELETE"])
@@ -1017,61 +1018,7 @@ def api_admin_analytics():
         "total_applications": count("SELECT COUNT(*) AS count FROM applications"),
     })
 
-# ── Notification dispatch helpers (FR 8.1 / FR 8.2) ──────────────────────────
-import smtplib
-from email.mime.text import MIMEText
-
-SMTP_HOST     = os.environ.get("SMTP_HOST", "")
-SMTP_PORT     = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER     = os.environ.get("SMTP_USER", "")
-SMTP_PASS     = os.environ.get("SMTP_PASS", "")
-SMTP_FROM     = os.environ.get("SMTP_FROM", "noreply@eduportal.ss")
-AT_API_KEY    = os.environ.get("AT_API_KEY", "")   # Africa's Talking
-AT_SENDER_ID  = os.environ.get("AT_SENDER_ID", "EduPortal")
-
-
-def send_email(to: str, subject: str, body: str) -> bool:
-    """Send a plain-text email. Returns True on success, False if not configured."""
-    if not SMTP_HOST or not SMTP_USER:
-        return False
-    try:
-        msg = MIMEText(body, "plain")
-        msg["Subject"] = subject
-        msg["From"]    = SMTP_FROM
-        msg["To"]      = to
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(SMTP_FROM, [to], msg.as_string())
-        return True
-    except Exception:
-        return False
-
-
-def send_sms(phone: str, message: str) -> bool:
-    """Send SMS via Africa's Talking API. Returns True on success."""
-    if not AT_API_KEY:
-        return False
-    try:
-        import urllib.request, urllib.parse, json as _json
-        payload = urllib.parse.urlencode({
-            "username": "sandbox" if "sandbox" in AT_API_KEY.lower() else "eduportal",
-            "to": phone,
-            "message": message,
-            "from": AT_SENDER_ID,
-        }).encode()
-        req = urllib.request.Request(
-            "https://api.africastalking.com/version1/messaging",
-            data=payload,
-            headers={"apiKey": AT_API_KEY, "Accept": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            result = _json.loads(resp.read())
-            return result.get("SMSMessageData", {}).get("Recipients", [{}])[0].get("status") == "Success"
-    except Exception:
-        return False
-
+# ── Notification test routes ──────────────────────────────────────────────────
 
 @app.route("/api/notifications/test-email", methods=["POST"])
 @require_role("admin")
@@ -1082,7 +1029,7 @@ def api_test_email():
     if not to:
         return api_err("No recipient email address")
     sent = send_email(to, "EduPortal Test Email", "This is a test email from EduPortal South Sudan.")
-    return jsonify({"sent": sent, "message": "Email sent" if sent else "SMTP not configured — check SMTP_HOST, SMTP_USER, SMTP_PASS env vars"})
+    return jsonify({"sent": sent, "message": "Email sent" if sent else "SMTP not configured — set SMTP_HOST, SMTP_USER, SMTP_PASS in .env"})
 
 
 @app.route("/api/notifications/test-sms", methods=["POST"])
@@ -1094,7 +1041,7 @@ def api_test_sms():
     if not to:
         return api_err("No recipient phone number")
     sent = send_sms(to, "EduPortal South Sudan: This is a test SMS notification.")
-    return jsonify({"sent": sent, "message": "SMS sent" if sent else "Africa's Talking not configured — set AT_API_KEY env var"})
+    return jsonify({"sent": sent, "message": "SMS sent" if sent else "Africa's Talking not configured — set AT_API_KEY in .env"})
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -1123,21 +1070,13 @@ def api_forgot_password():
     if user:
         import secrets
         token = secrets.token_urlsafe(32)
-        if db_engine() == "mysql":
-            execute(
-                """INSERT INTO password_resets (user_id, token, created_at)
-                   VALUES (?,?,CURRENT_TIMESTAMP)
-                   ON DUPLICATE KEY UPDATE token=VALUES(token), created_at=CURRENT_TIMESTAMP""",
-                (user["id"], token),
-            )
-        else:
-            execute(
-                """INSERT INTO password_resets (user_id, token, created_at)
-                   VALUES (?,?,CURRENT_TIMESTAMP)
-                   ON CONFLICT (user_id)
-                   DO UPDATE SET token=EXCLUDED.token, created_at=CURRENT_TIMESTAMP""",
-                (user["id"], token),
-            )
+        execute(
+            """INSERT INTO password_resets (user_id, token, created_at)
+               VALUES (?,?,CURRENT_TIMESTAMP)
+               ON CONFLICT (user_id)
+               DO UPDATE SET token=EXCLUDED.token, created_at=CURRENT_TIMESTAMP""",
+            (user["id"], token),
+        )
         # Send via email if available, SMS if not
         email_sent = sms_sent = False
         reset_msg = f"Your EduPortal password reset code is: {token}\n\nThis code expires in 1 hour."
@@ -1264,11 +1203,13 @@ def api_admin_onboard_school():
         ),
     )
     log_audit(u["id"], "create_school", "school", sid)
-    # Generate invitation token
+    # Generate invitation token — store bcrypt hash, keep raw token for the link only
     token = secrets.token_urlsafe(32)
+    token_hash = bcrypt.hashpw(token.encode(), bcrypt.gensalt()).decode()
+    token_hint = token[:8]
     execute(
-        "INSERT INTO invitations (token,role,ref_id,email,used) VALUES (?,?,?,?,0)",
-        (token, "school_admin", sid, email),
+        "INSERT INTO invitations (token_hash,token_hint,role,ref_id,email,used) VALUES (?,?,?,?,?,0)",
+        (token_hash, token_hint, "school_admin", sid, email),
     )
     base_url = request.host_url.rstrip("/")
     invite_link = f"{base_url}/accept-invite?token={token}"
@@ -1307,9 +1248,11 @@ def api_admin_onboard_ngo():
     )
     log_audit(u["id"], "create_ngo", "ngo", ngo_id)
     token = secrets.token_urlsafe(32)
+    token_hash = bcrypt.hashpw(token.encode(), bcrypt.gensalt()).decode()
+    token_hint = token[:8]
     execute(
-        "INSERT INTO invitations (token,role,ref_id,email,used) VALUES (?,?,?,?,0)",
-        (token, "ngo_officer", ngo_id, email),
+        "INSERT INTO invitations (token_hash,token_hint,role,ref_id,email,used) VALUES (?,?,?,?,?,0)",
+        (token_hash, token_hint, "ngo_officer", ngo_id, email),
     )
     base_url = request.host_url.rstrip("/")
     invite_link = f"{base_url}/accept-invite?token={token}"
@@ -1345,10 +1288,19 @@ def api_accept_invite():
         return api_err("token, name, and password are required")
     if len(password) < 8:
         return api_err("Password must be at least 8 characters")
-    inv = query_one(
-        "SELECT * FROM invitations WHERE token=? AND used=0",
-        (token,),
+    # Look up by hint first (fast index scan), then bcrypt-verify the full token
+    hint = token[:8]
+    candidates = query_one(
+        "SELECT * FROM invitations WHERE token_hint=? AND used=0",
+        (hint,),
     )
+    inv = None
+    if candidates:
+        try:
+            if bcrypt.checkpw(token.encode(), candidates["token_hash"].encode()):
+                inv = candidates
+        except Exception:
+            pass
     if not inv:
         return api_err("Invalid or already-used invitation link", 400)
     # Check if a user with this email already exists
@@ -1364,7 +1316,7 @@ def api_accept_invite():
     if inv["role"] == "school_admin" and inv["ref_id"]:
         execute("UPDATE users SET school_id=? WHERE id=?", (inv["ref_id"], uid))
     # Mark invitation as used
-    execute("UPDATE invitations SET used=1 WHERE token=?", (token,))
+    execute("UPDATE invitations SET used=1 WHERE id=?", (inv["id"],))
     user = query_one("SELECT * FROM users WHERE id=?", (uid,))
     if not user:
         return api_err("Account creation failed", 500)
@@ -1377,7 +1329,18 @@ def api_invitation_check():
     token = (request.args.get("token") or "").strip()
     if not token:
         return api_err("token is required")
-    inv = query_one("SELECT role,ref_id,email,used FROM invitations WHERE token=?", (token,))
+    hint = token[:8]
+    candidate = query_one(
+        "SELECT id,token_hash,role,ref_id,email,used FROM invitations WHERE token_hint=?",
+        (hint,),
+    )
+    inv = None
+    if candidate:
+        try:
+            if bcrypt.checkpw(token.encode(), candidate["token_hash"].encode()):
+                inv = candidate
+        except Exception:
+            pass
     if not inv:
         return api_err("Invitation not found", 404)
     if inv["used"]:
@@ -1567,14 +1530,14 @@ def api_my_ngo_update():
 
 @app.route("/healthz")
 def healthz():
-    engine = db_engine()
     try:
-        with get_db() as db:
-            db.execute("SELECT 1")
-        return jsonify({"status": "ok", "database": {"engine": engine, "connected": True}})
+        from sqlalchemy import text
+        with get_db() as conn:
+            conn.execute(text("SELECT 1"))
+        return jsonify({"status": "ok", "database": {"engine": "postgres", "connected": True}})
     except Exception as exc:
         log.error("Health check DB error: %s", exc)
-        return jsonify({"status": "degraded", "database": {"engine": engine, "connected": False}}), 503
+        return jsonify({"status": "degraded", "database": {"engine": "postgres", "connected": False}}), 503
 
 
 @app.errorhandler(404)

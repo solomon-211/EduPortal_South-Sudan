@@ -15,36 +15,35 @@ HTML_DIR         = FRONTEND_DIR / "html"
 CSS_DIR          = FRONTEND_DIR / "css"
 JS_DIR           = FRONTEND_DIR / "javascript"
 ASSETS_DIR       = FRONTEND_DIR / "assets"
-DB_DIR           = BASE_DIR / "database"
-SQLITE_PATH      = DB_DIR / "eduportal.sqlite3"
-UPLOAD_FOLDER    = ASSETS_DIR / "avatars"
-MATERIALS_FOLDER = ASSETS_DIR / "materials"
-MIGRATIONS_DIR   = DB_DIR / "migrations"
+MIGRATIONS_DIR   = BASE_DIR / "database" / "migrations"
 
 # ── Upload limits ─────────────────────────────────────────────────────────────
 
 ALLOWED_EXTENSIONS    = {"jpg", "jpeg", "png", "gif", "webp"}
 ALLOWED_MATERIAL_EXTS = {"pdf", "mp4", "webm", "ogg", "m4v"}
-MAX_AVATAR_BYTES      = 2 * 1024 * 1024   # 2 MB
+MAX_AVATAR_BYTES      = 2 * 1024 * 1024    # 2 MB
 MAX_MATERIAL_BYTES    = 100 * 1024 * 1024  # 100 MB
 
+UPLOAD_FOLDER    = ASSETS_DIR / "avatars"
+MATERIALS_FOLDER = ASSETS_DIR / "materials"
+
 # ── PostgreSQL ────────────────────────────────────────────────────────────────
+# Prefer a full DATABASE_URL; fall back to building one from individual vars.
 
-DATABASE_URL      = os.environ.get("DATABASE_URL", "").strip()
-POSTGRES_HOST     = os.environ.get("POSTGRES_HOST", "").strip()
-POSTGRES_PORT     = int(os.environ.get("POSTGRES_PORT", "5432"))
-POSTGRES_USER     = os.environ.get("POSTGRES_USER", "").strip()
-POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
-POSTGRES_DATABASE = os.environ.get("POSTGRES_DATABASE", "").strip()
-POSTGRES_SSLMODE  = os.environ.get("POSTGRES_SSLMODE", "prefer").strip() or "prefer"
+def _build_database_url() -> str:
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if url:
+        # SQLAlchemy requires postgresql:// not postgres://
+        return url.replace("postgres://", "postgresql://", 1)
+    host     = os.environ.get("POSTGRES_HOST", "localhost").strip()
+    port     = os.environ.get("POSTGRES_PORT", "5432").strip()
+    user     = os.environ.get("POSTGRES_USER", "").strip()
+    password = os.environ.get("POSTGRES_PASSWORD", "").strip()
+    dbname   = os.environ.get("POSTGRES_DATABASE", "").strip()
+    sslmode  = (os.environ.get("POSTGRES_SSLMODE", "prefer").strip() or "prefer")
+    return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}"
 
-# ── MySQL ─────────────────────────────────────────────────────────────────────
-
-MYSQL_HOST     = os.environ.get("MYSQL_HOST", "").strip()
-MYSQL_PORT     = int(os.environ.get("MYSQL_PORT", "3306"))
-MYSQL_USER     = os.environ.get("MYSQL_USER", "").strip()
-MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD", "")
-MYSQL_DATABASE = os.environ.get("MYSQL_DATABASE", "").strip()
+DATABASE_URL = _build_database_url()
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 

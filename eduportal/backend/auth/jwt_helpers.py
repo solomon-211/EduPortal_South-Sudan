@@ -70,7 +70,7 @@ def require_permission(action: str):
                 return jsonify({"error": "Authentication required"}), 401
             if user["role"] != "admin":
                 row = query_one(
-                    "SELECT 1 FROM role_permissions WHERE role=%s AND action=%s",
+                    "SELECT 1 FROM role_permissions WHERE role=? AND action=?",
                     (user["role"], action),
                 )
                 if not row:

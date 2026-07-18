@@ -20,25 +20,17 @@ for p in (_ROOT, _BACKEND):
 from dotenv import load_dotenv
 load_dotenv(_ROOT / ".env")
 
-# ── Build the PostgreSQL URL from env vars ────────────────────────────────────
 
-def _pg_url() -> str:
-    url = os.environ.get("DATABASE_URL", "").strip()
-    if url:
-        # SQLAlchemy requires postgresql:// not postgres://
-        return url.replace("postgres://", "postgresql://", 1)
-    host     = os.environ.get("POSTGRES_HOST", "localhost")
-    port     = os.environ.get("POSTGRES_PORT", "5432")
-    user     = os.environ.get("POSTGRES_USER", "")
-    password = os.environ.get("POSTGRES_PASSWORD", "")
-    dbname   = os.environ.get("POSTGRES_DATABASE", "")
-    sslmode  = os.environ.get("POSTGRES_SSLMODE", "prefer")
-    return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}"
+# ── Build the PostgreSQL URL ──────────────────────────────────────────────────
+
+def _db_url() -> str:
+    from config.settings import DATABASE_URL
+    return DATABASE_URL
 
 
 # ── Alembic Config ────────────────────────────────────────────────────────────
 config = context.config
-config.set_main_option("sqlalchemy.url", _pg_url())
+config.set_main_option("sqlalchemy.url", _db_url())
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

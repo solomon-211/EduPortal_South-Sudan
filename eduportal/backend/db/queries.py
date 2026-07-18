@@ -1,32 +1,63 @@
 from __future__ import annotations
 
-from db.connection import get_db, db_engine
+from sqlalchemy import text
+
+from db.connection import get_conn
 
 
 def query_all(sql: str, params: tuple = ()) -> list[dict]:
-    with get_db() as db:
-        return [dict(r) for r in db.execute(sql, params).fetchall()]
+    bound_sql, bound_params = _bind(sql, params)
+    result = get_conn().execute(text(bound_sql), bound_params)
+    return [dict(r._mapping) for r in result.fetchall()]
 
 
 def query_one(sql: str, params: tuple = ()) -> dict | None:
-    with get_db() as db:
-        row = db.execute(sql, params).fetchone()
-    return dict(row) if row else None
+    bound_sql, bound_params = _bind(sql, params)
+    result = get_conn().execute(text(bound_sql), bound_params)
+    row = result.fetchone()
+    return dict(row._mapping) if row else None
 
 
 def execute(sql: str, params: tuple = ()) -> int:
-    with get_db() as db:
-        cur = db.execute(sql, params)
-        if db_engine() == "postgres" and sql.lstrip().upper().startswith("INSERT"):
-            try:
-                row = db.execute("SELECT LASTVAL() AS last_id").fetchone()
-                if row:
-                    return int(row["last_id"] if isinstance(row, dict) else row[0])
-            except Exception:
-                return 0
-        return cur.lastrowid or 0
+    """Run an INSERT/UPDATE/DELETE. For INSERT, appends RETURNING id and returns it."""
+    if sql.lstrip().upper().startswith("INSERT"):
+        base = sql.rstrip().rstrip(";")
+        if "RETURNING" not in base.upper():
+            base += " RETURNING id"
+        bound_sql, bound_params = _bind(base, params)
+        result = get_conn().execute(text(bound_sql), bound_params)
+        row = result.fetchone()
+        return int(row[0]) if row else 0
+    bound_sql, bound_params = _bind(sql, params)
+    get_conn().execute(text(bound_sql), bound_params)
+    return 0
 
 
 def count(sql: str, params: tuple = ()) -> int:
     r = query_one(sql, params)
     return r["count"] if r else 0
+
+
+# ── Internal helper ───────────────────────────────────────────────────────────
+
+def _bind(sql: str, params: tuple) -> tuple[str, dict]:
+    """Rewrite ? placeholders to :p0, :p1 … and return (rewritten_sql, param_dict).
+
+    All raw SQL in app.py uses ? placeholders.  SQLAlchemy text() requires
+    named bindings, so we rewrite on the fly — keeping every query in app.py
+    completely unchanged.
+    """
+    if not params:
+        return sql, {}
+    param_dict: dict = {}
+    parts: list[str] = []
+    idx = 0
+    for ch in sql:
+        if ch == "?":
+            key = f"p{idx}"
+            parts.append(f":{key}")
+            param_dict[key] = params[idx]
+            idx += 1
+        else:
+            parts.append(ch)
+    return "".join(parts), param_dict

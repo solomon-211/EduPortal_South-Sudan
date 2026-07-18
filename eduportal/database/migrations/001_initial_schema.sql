@@ -124,11 +124,14 @@ CREATE TABLE IF NOT EXISTS password_resets (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE TABLE IF NOT EXISTS invitations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token TEXT NOT NULL UNIQUE,
-    role TEXT NOT NULL,
-    ref_id INTEGER,
-    email TEXT NOT NULL,
-    used INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_hash TEXT    NOT NULL,
+    token_hint TEXT    NOT NULL,
+    role       TEXT    NOT NULL,
+    ref_id     INTEGER,
+    email      TEXT    NOT NULL,
+    used       INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_inv_hint  ON invitations(token_hint);
+CREATE INDEX IF NOT EXISTS idx_inv_email ON invitations(email);
