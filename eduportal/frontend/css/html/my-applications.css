@@ -3761,8 +3761,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   padding: 0.85rem 1rem;
   margin-bottom: 1.2rem;
   border-radius: 10px;
-  background: #f7f7f8;
-  border: 1px solid rgba(34,34,34,0.08);
+  background: rgba(255,255,255,0.13);\r\n  border: 1px solid rgba(255,255,255,0.22);\r\n  -webkit-backdrop-filter: blur(20px) saturate(1.6);\r\n  backdrop-filter: blur(20px) saturate(1.6);\r\n  box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.14) inset;
 }
 .sidebar-account-compact {
   margin-bottom: 0;
