@@ -3693,7 +3693,8 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   left: 0;
   width: 268px;
   height: 100vh;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: linear-gradient(175deg, #3b0a0a 0%, #5c1010 30%, #7a1a0a 65%, #4a1a08 100%);
   border-right: none;
   padding: 1.5rem 1.2rem 1.5rem;
@@ -3800,14 +3801,23 @@ textarea.field-input { resize: vertical; min-height: 80px; }
 .sidebar-account strong { font-size: 0.9rem; color: #fff; margin-bottom: 0.1rem; }
 .sidebar-account span { color: rgba(233,138,38,0.8); font-size: 0.78rem; text-transform: capitalize; font-weight: 600; }
 
-.nav-group + .nav-group { margin-top: 1.6rem; }
+.nav-group + .nav-group { margin-top: 1.8rem; }
 .nav-label {
-  color: rgba(233,138,38,0.55);
-  margin-bottom: 0.55rem;
-  padding-left: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  padding: 0.28rem 0.75rem 0.28rem 0.6rem;
   font-size: 0.62rem;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
   font-weight: 800;
+  text-transform: uppercase;
+  color: #e98a26;
+  background: rgba(233,138,38,0.12);
+  border: 1px solid rgba(233,138,38,0.28);
+  border-radius: 999px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.18), 0 0 0 1px rgba(233,138,38,0.08) inset;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.35);
 }
 .sidebar a {
   display: flex;

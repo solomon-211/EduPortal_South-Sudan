@@ -1160,7 +1160,7 @@ def api_notifications():
     for r in rows:
         notifications.append({"type": "deadline", "title": f"Deadline soon: {r['title']}", "body": f"Closes {r['deadline']}", "id": r["id"]})
     for a in ann:
-        notifications.append({"type": "announcement", "title": a["title"], "body": a["created_at"][:10], "id": a["id"]})
+        notifications.append({"type": "announcement", "title": a["title"], "body": str(a["created_at"])[:10], "id": a["id"]})
     return jsonify({"items": notifications, "count": len(notifications)})
 
 # ── Admin: onboard school (create + send invite email) ───────────────────────
