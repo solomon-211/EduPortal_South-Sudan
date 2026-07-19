@@ -3694,7 +3694,13 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   width: 268px;
   height: 100vh;
   overflow: hidden;
-  background: linear-gradient(175deg, #3b0a0a 0%, #5c1010 30%, #7a1a0a 65%, #4a1a08 100%);`r`n  border-right: none;`r`n  padding: 1.5rem 1.2rem 1.5rem;`r`n  display: flex;`r`n  flex-direction: column;`r`n  z-index: 100;`r`n  box-shadow: 3px 0 32px rgba(58,10,10,0.45);
+  background: linear-gradient(175deg, #3b0a0a 0%, #5c1010 30%, #7a1a0a 65%, #4a1a08 100%);
+  border-right: none;
+  padding: 1.5rem 1.2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  box-shadow: 3px 0 32px rgba(58,10,10,0.45);
 }
 .sidebar::before {
   content: '';
@@ -4329,5 +4335,47 @@ textarea.field-input { resize: vertical; min-height: 80px; }
 
 .admin-grid-panel {
   margin-bottom: 1rem;
+}
+
+/* ── Admin page: distinct background ─────────────────────────────────────── */
+body.admin-page {
+  background:
+    radial-gradient(ellipse at 0% 0%,   rgba(143,29,29,0.10) 0%, transparent 40%),
+    radial-gradient(ellipse at 100% 100%, rgba(233,138,38,0.07) 0%, transparent 40%),
+    linear-gradient(160deg, #1a1210 0%, #2a1a14 40%, #1e1612 100%);
+}
+
+body.admin-page .main-content {
+  background:
+    radial-gradient(ellipse at 5% 10%,   rgba(143,29,29,0.08) 0%, transparent 35%),
+    radial-gradient(ellipse at 95% 90%,  rgba(233,138,38,0.06) 0%, transparent 35%),
+    linear-gradient(160deg, #f0ebe3 0%, #ede5da 50%, #e8dfd3 100%);
+  min-height: 100vh;
+}
+
+/* Top banner: slightly tinted for admin */
+body.admin-page .top-banner {
+  background: rgba(255, 252, 248, 0.97) !important;
+  border-bottom: 1px solid rgba(143,29,29,0.12) !important;
+  box-shadow: 0 1px 12px rgba(47,11,11,0.08);
+}
+
+/* Eyebrow label: stronger maroon on admin */
+body.admin-page .top-banner .eyebrow {
+  color: var(--maroon-dark) !important;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+/* Stat cards: slightly warmer tint */
+body.admin-page .summary-card,
+body.admin-page .content-panel {
+  background: #fffaf6;
+  border-color: rgba(143,29,29,0.09);
+}
+
+/* Tab nav underline: stronger contrast on admin bg */
+body.admin-page .admin-tab-nav {
+  border-bottom-color: rgba(143,29,29,0.14);
 }
 

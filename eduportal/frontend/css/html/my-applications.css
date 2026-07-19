@@ -3693,7 +3693,8 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   left: 0;
   width: 268px;
   height: 100vh;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: linear-gradient(175deg, #3b0a0a 0%, #5c1010 30%, #7a1a0a 65%, #4a1a08 100%);`r`n  border-right: none;`r`n  padding: 1.5rem 1.2rem 1.5rem;`r`n  display: flex;`r`n  flex-direction: column;`r`n  z-index: 100;`r`n  box-shadow: 3px 0 32px rgba(58,10,10,0.45);
 }
 .sidebar::before {
