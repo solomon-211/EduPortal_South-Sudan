@@ -7,6 +7,7 @@ Create Date: 2026-07-18
 from __future__ import annotations
 
 from alembic import op
+import sqlalchemy as sa
 
 revision: str = "0003"
 down_revision = "0002"
@@ -21,7 +22,6 @@ _INDEXES = [
     ("idx_apps_user_date",              "applications(user_id, applied_at DESC)"),
     ("idx_apps_status",                 "applications(status)"),
     ("idx_bookmarks_user_type",         "bookmarks(user_id, item_type)"),
-    ("idx_pr_token_hint",               "password_resets(token)"),
     ("idx_schools_name",                "schools(name)"),
     ("idx_schools_state_level_type",    "schools(state, level, type)"),
 ]
@@ -29,9 +29,9 @@ _INDEXES = [
 
 def upgrade() -> None:
     for name, definition in _INDEXES:
-        op.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {definition}")
+        op.execute(sa.text(f"CREATE INDEX IF NOT EXISTS {name} ON {definition}"))
 
 
 def downgrade() -> None:
     for name, _ in _INDEXES:
-        op.execute(f"DROP INDEX IF EXISTS {name}")
+        op.execute(sa.text(f"DROP INDEX IF EXISTS {name}"))

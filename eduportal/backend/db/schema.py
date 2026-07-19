@@ -3,8 +3,6 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
-from pathlib import Path
-
 import bcrypt
 
 from config.settings import BASE_DIR
@@ -91,7 +89,7 @@ def _seed(conn) -> None:
             conn.execute(text(
                 "INSERT INTO admission_requirements (school_id,item_label,is_required,notes) "
                 "VALUES (:s,:l,:r,:n)"
-            ), dict(s=sid, l=label, r=required, n=notes))
+            ), dict(s=sid, l=label, r=int(required), n=notes))
 
     for title, subject, grade, year, mtype, size, preview in [
         ("Mathematics P8 Past Paper 2024", "Mathematics", "P8", 2024, "past paper", "1.8 MB", "Arithmetic, geometry, and measurement questions."),

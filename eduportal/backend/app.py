@@ -16,7 +16,7 @@ from werkzeug.utils import secure_filename
 log = logging.getLogger(__name__)
 
 from auth.jwt_helpers import api_err, get_current_user, log_audit, make_token, require_auth, require_role
-from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES
+from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES, ALLOWED_EXTENSIONS, ALLOWED_MATERIAL_EXTS
 from db.connection import get_db, close_conn
 from db.queries import count, execute, query_all, query_one
 from db.schema import init_db

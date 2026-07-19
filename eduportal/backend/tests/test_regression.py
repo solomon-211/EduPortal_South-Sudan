@@ -209,7 +209,14 @@ def _apply_schema() -> None:
 
 _apply_schema()
 
-from app import app as flask_app  # noqa: E402
+# Patch schema.init_db to skip Alembic in tests
+import db.schema as _schema_module
+_schema_module.init_db = lambda: None
+
+from app import app as flask_app, limiter as _limiter  # noqa: E402
+
+# Disable Flask-Limiter for the test run — prevents 429 on rapid registrations
+_limiter.enabled = False
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -217,6 +224,7 @@ from app import app as flask_app  # noqa: E402
 @pytest.fixture(scope="session")
 def client():
     flask_app.config["TESTING"] = True
+    flask_app.config["RATELIMIT_ENABLED"] = False   # disable rate limiting in tests
     with flask_app.test_client() as c:
         yield c
 

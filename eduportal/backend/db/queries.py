@@ -19,8 +19,15 @@ def query_one(sql: str, params: tuple = ()) -> dict | None:
 
 
 def execute(sql: str, params: tuple = ()) -> int:
-    """Run an INSERT/UPDATE/DELETE. For INSERT, appends RETURNING id and returns it."""
-    if sql.lstrip().upper().startswith("INSERT"):
+    """Run an INSERT/UPDATE/DELETE. For INSERT, appends RETURNING id and returns it.
+
+    Skips RETURNING for upserts (ON CONFLICT ... DO UPDATE) because SQLite
+    does not support RETURNING on upsert statements.
+    """
+    sql_upper = sql.lstrip().upper()
+    is_insert = sql_upper.startswith("INSERT")
+    is_upsert = "ON CONFLICT" in sql_upper and "DO UPDATE" in sql_upper
+    if is_insert and not is_upsert:
         base = sql.rstrip().rstrip(";")
         if "RETURNING" not in base.upper():
             base += " RETURNING id"
