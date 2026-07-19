@@ -1,4 +1,4 @@
-/* Auto-generated: page-specific self-contained stylesheet */
+﻿/* Auto-generated: page-specific self-contained stylesheet */
 /* Source page: admin.css */
 
 /*
@@ -1461,9 +1461,9 @@ body[data-page="announcements"] .page-shell {
 .snapshot-item span { color: var(--muted); font-size: 0.88rem; }
 
 /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Sidebar bottom / logout ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
-.sidebar-bottom { margin-top: auto !important; padding-top: 1rem; border-top: 1px solid var(--border); position: sticky; bottom: 0; background: #fff; }
-.logout-link { color: var(--muted) !important; }
-.logout-link:hover { color: var(--maroon) !important; background: rgba(139,26,26,0.05) !important; }
+.sidebar-bottom { margin-top: auto !important; padding-top: 1rem; border-top: 1px solid rgba(233,138,38,0.18); position: sticky; bottom: 0; background: transparent; }
+.logout-link { color: rgba(255,255,255,0.5) !important; }
+.logout-link:hover { color: #e98a26 !important; background: rgba(233,138,38,0.1) !important; }
 
 /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Register wide card ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
 .auth-card-wide { width: min(100%, 36rem); }
@@ -3694,13 +3694,15 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   width: 268px;
   height: 100vh;
   overflow: hidden;
-  background: #ffffff;
-  border-right: 1px solid rgba(34,34,34,0.1);
-  padding: 1.5rem 1.2rem 1.5rem;
-  display: flex;
-  flex-direction: column;
-  z-index: 100;
-  box-shadow: 1px 0 12px rgba(0,0,0,0.04);
+  background: linear-gradient(175deg, #3b0a0a 0%, #5c1010 30%, #7a1a0a 65%, #4a1a08 100%);`r`n  border-right: none;`r`n  padding: 1.5rem 1.2rem 1.5rem;`r`n  display: flex;`r`n  flex-direction: column;`r`n  z-index: 100;`r`n  box-shadow: 3px 0 32px rgba(58,10,10,0.45);
+}
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #e98a26, #c0392b, #4a1a08);
+  z-index: 1;
 }
 
 .sidebar-static-header {
@@ -3747,9 +3749,9 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   flex-shrink: 0;
   box-shadow: none;
 }
-.sidebar-brand strong { font-size: 0.92rem; line-height: 1.2; color: #1f1f1f; font-family: var(--font-ui); font-weight: 700; display: block; }
+.sidebar-brand strong { font-size: 0.92rem; line-height: 1.2; color: #fff; font-family: var(--font-ui); font-weight: 700; display: block; }
 .sidebar-brand strong { white-space: nowrap; }
-.sidebar-brand span { color: var(--muted); font-size: 0.76rem; display: block; }
+.sidebar-brand span { color: rgba(255,255,255,0.5); font-size: 0.76rem; display: block; }
 
 .sidebar-account {
   display: flex;
@@ -3788,12 +3790,12 @@ textarea.field-input { resize: vertical; min-height: 80px; }
 .sidebar-account-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-account strong,
 .sidebar-account span { display: block; }
-.sidebar-account strong { font-size: 0.9rem; color: var(--ink); margin-bottom: 0.1rem; }
-.sidebar-account span { color: var(--muted); font-size: 0.78rem; text-transform: capitalize; }
+.sidebar-account strong { font-size: 0.9rem; color: #fff; margin-bottom: 0.1rem; }
+.sidebar-account span { color: rgba(233,138,38,0.8); font-size: 0.78rem; text-transform: capitalize; font-weight: 600; }
 
 .nav-group + .nav-group { margin-top: 1.8rem; }
 .nav-label {
-  color: #6a6a6a;
+  color: rgba(233,138,38,0.55);
   margin-bottom: 0.55rem;
   padding-left: 0.6rem;
   font-size: 0.65rem;
@@ -3806,7 +3808,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   gap: 0.7rem;
   padding: 0.72rem 0.9rem;
   border-radius: var(--radius-sm);
-  color: #4f4f4f;
+  color: rgba(255,255,255,0.72);
   font-weight: 600;
   font-size: 0.88rem;
   margin-bottom: 0.15rem;
@@ -3831,7 +3833,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   color: #1f1f1f;
   border-color: rgba(34,34,34,0.12);
 }
-.sidebar a:hover .nav-icon { background: #e9ebef; color: #333; }
+.sidebar a:hover .nav-icon { background: rgba(233,138,38,0.2); color: #e98a26; }
 .sidebar a.active {
   background: #eceff3;
   color: #1f1f1f;
@@ -3839,7 +3841,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   border-color: rgba(34,34,34,0.18);
   box-shadow: none;
 }
-.sidebar a.active .nav-icon { background: #dfe4ea; color: #1f1f1f; }
+.sidebar a.active .nav-icon { background: linear-gradient(135deg, rgba(233,138,38,0.45), rgba(201,106,16,0.35)); color: #ffd580; }
 
 .banner-link {
   padding: 0.7rem 1rem;

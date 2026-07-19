@@ -17,7 +17,10 @@
   --maroon-mid: #7a1818;
   --maroon-light: rgba(143,29,29,0.08);
   --orange: #e98a26;
+  --orange-dark: #c96a10;
   --orange-light: rgba(233,138,38,0.12);
+  --dark-brown: #3b0a0a;
+  --dark-brown-mid: #4a1a08;
   --green: #1a7a3c;
   --white: #ffffff;
   --cream: #faf4eb;
@@ -1462,9 +1465,9 @@ body[data-page="announcements"] .page-shell {
 .snapshot-item span { color: var(--muted); font-size: 0.88rem; }
 
 /* ── Sidebar bottom / logout ── */
-.sidebar-bottom { margin-top: auto !important; padding-top: 1rem; border-top: 1px solid var(--border); position: sticky; bottom: 0; background: #fff; }
-.logout-link { color: var(--muted) !important; }
-.logout-link:hover { color: var(--maroon) !important; background: rgba(139,26,26,0.05) !important; }
+.sidebar-bottom { margin-top: auto !important; padding-top: 1rem; border-top: 1px solid rgba(233,138,38,0.18); position: sticky; bottom: 0; background: transparent; }
+.logout-link { color: rgba(255,255,255,0.5) !important; }
+.logout-link:hover { color: #e98a26 !important; background: rgba(233,138,38,0.1) !important; border-color: rgba(233,138,38,0.2) !important; }
 
 /* ── Register wide card ── */
 .auth-card-wide { width: min(100%, 36rem); }
