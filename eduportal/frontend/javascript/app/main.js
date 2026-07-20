@@ -666,17 +666,6 @@
     const uploadForm = document.getElementById('upload-material-form');
     const uploadMsg  = document.getElementById('upload-material-message');
     if (uploadForm) {
-      // Add a file input dynamically if not already present
-      if (!uploadForm.querySelector('[name="file"]')) {
-        const fileFieldHTML = `
-          <div class="field u-grid-span-full">
-            <span>PDF or video file (max 100 MB)</span>
-            <input type="file" name="file" accept=".pdf,.mp4,.webm,.ogg,.m4v" class="u-file-input">
-          </div>`;
-        const submitBtn = uploadForm.querySelector('button[type="submit"]');
-        submitBtn.insertAdjacentHTML('beforebegin', fileFieldHTML);
-      }
-
       uploadForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = uploadForm.querySelector('button[type="submit"]');
@@ -1026,6 +1015,7 @@
                   <p class="ann-list-preview">${esc(a.body)}</p>
                   <div class="ann-list-footer">
                     <span class="deadline-badge">Expires: ${esc(a.expires_at || 'N/A')}</span>
+                    ${a.attachment_path ? `<a href="${esc(a.attachment_path)}" target="_blank" rel="noopener" class="card-link">📎 Download</a>` : a.attachment_url ? `<a href="${esc(a.attachment_url)}" target="_blank" rel="noopener" class="card-link">View attachment</a>` : ''}
                     <span class="u-school-copy-inline">${esc(a.created_at ? a.created_at.slice(0,10) : '')}</span>
                   </div>
                 </div>
@@ -1157,6 +1147,8 @@
         avatarImg.src = user.avatar;
         avatarImg.style.display = '';
         if (avatarFallback) avatarFallback.style.display = 'none';
+        // Also update sidebar/top-bar immediately on page load
+        _refreshSidebarAvatar(user.avatar);
       }
 
       // Fill form fields
@@ -1238,7 +1230,13 @@
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
         setMsg(msg, 'Profile photo saved.');
         // Bust cache so the new image shows immediately
-        if (avatarImg) avatarImg.src = data.avatar + '?t=' + Date.now();
+        const freshSrc = data.avatar + '?t=' + Date.now();
+        if (avatarImg) avatarImg.src = freshSrc;
+        // Persist avatar URL in stored session so sidebar/banner reflect it
+        const stored = getUser();
+        if (stored) { stored.avatar = data.avatar; localStorage.setItem(USER_KEY, JSON.stringify(stored)); }
+        // Live-update sidebar avatar and account trigger without reload
+        _refreshSidebarAvatar(freshSrc);
       } catch (err) {
         setMsg(msg, 'Photo preview saved locally, but upload failed: ' + err.message, true);
       }
@@ -2534,10 +2532,28 @@
     });
   }
 
+  // ── Live sidebar avatar refresh (called after upload without reload) ──────
+  function _refreshSidebarAvatar(src) {
+    const imgTag = `<img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">`;
+    function apply() {
+      document.querySelectorAll('.sidebar-avatar-sm').forEach(el => { el.innerHTML = imgTag; });
+      const trigger = document.querySelector('.account-trigger');
+      if (trigger) trigger.innerHTML = imgTag;
+    }
+    apply();
+    // Retry once after sidebar finishes rendering (sidebar-main.js is deferred)
+    setTimeout(apply, 300);
+  }
+
   // ── Boot ──────────────────────────────────────────────────────────────────
   function bootApp() {
     const page = document.body.dataset.page || '';
 
+    // Restore avatar on every page from localStorage immediately
+    const storedUser = getUser();
+    if (storedUser && storedUser.avatar) {
+      _refreshSidebarAvatar(storedUser.avatar);
+    }
     if (document.getElementById('login-form'))    initLogin();
     if (document.getElementById('register-form')) initRegister();
     if (document.getElementById('forgot-form'))   initForgotPassword();

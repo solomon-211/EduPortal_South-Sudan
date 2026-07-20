@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Organisations | EduPortal South Sudan</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/html/announcements.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/sidebar.js"></script>
+  <script defer src="/static/app.js"></script>
+  <script defer src="/static/app/organizations.js"></script>
+</head>
+<body data-page="organizations">
+<div class="dashboard">
+  <nav class="sidebar"></nav>
+
+  <header class="top-banner">
+    <div>
+      <p class="eyebrow">Organisations</p>
+      <h1>Verified Publishers on EduPortal</h1>
+    </div>
+    <div class="top-banner-actions"></div>
+  </header>
+
+  <main class="main-content">
+
+    <!-- ── Filter toolbar ── -->
+    <section class="toolbar-card card" style="margin-bottom:1.2rem">
+      <form id="orgs-filter-form" class="filter-row">
+        <select name="org_type" title="Filter by type">
+          <option value="">All organisation types</option>
+          <option value="Ministry of General Education">Ministry of General Education</option>
+          <option value="State Ministry of Education">State Ministry of Education</option>
+          <option value="Examination Body">Examination Body (SSNEC)</option>
+          <option value="University">University</option>
+          <option value="College">College</option>
+          <option value="School">School</option>
+          <option value="NGO">NGO</option>
+          <option value="Scholarship Provider">Scholarship Provider</option>
+        </select>
+        <select name="state" title="Filter by state">
+          <option value="">All states</option>
+          <option>Central Equatoria</option>
+          <option>Eastern Equatoria</option>
+          <option>Western Equatoria</option>
+          <option>Jonglei</option>
+          <option>Upper Nile</option>
+          <option>Unity</option>
+          <option>Lakes</option>
+          <option>Warrap</option>
+          <option>Northern Bahr el Ghazal</option>
+          <option>Western Bahr el Ghazal</option>
+        </select>
+        <button class="card-button" type="submit">Filter</button>
+      </form>
+    </section>
+
+    <!-- ── Results ── -->
+    <section id="orgs-results" style="margin-bottom:2rem"></section>
+
+    <!-- ── Join / Request access ── -->
+    <section class="content-panel">
+      <p class="section-label u-card-head-sm">REQUEST TO PUBLISH ON EDUPORTAL</p>
+      <p class="panel-intro">
+        Is your organisation — a ministry, university, examination body, school, NGO, or scholarship provider —
+        not yet listed? Submit a request below. Our team will review and send you a publisher invitation.
+      </p>
+
+      <form id="join-request-form" class="post-form-grid">
+        <div class="post-form-row-2">
+          <label class="field">
+            <span>Organisation name</span>
+            <input type="text" name="name" placeholder="e.g. University of Juba" required>
+          </label>
+          <label class="field">
+            <span>Organisation type</span>
+            <select name="org_type" required>
+              <option value="">Select type…</option>
+              <option value="Ministry of General Education">Ministry of General Education</option>
+              <option value="State Ministry of Education">State Ministry of Education</option>
+              <option value="Examination Body">Examination Body (SSNEC)</option>
+              <option value="University">University</option>
+              <option value="College">College</option>
+              <option value="School">School</option>
+              <option value="NGO">NGO</option>
+              <option value="Scholarship Provider">Scholarship Provider</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="post-form-row-2">
+          <label class="field">
+            <span>Contact email</span>
+            <input type="email" name="email" placeholder="contact@org.ss" required>
+          </label>
+          <label class="field">
+            <span>Phone <span class="field-optional">(optional)</span></span>
+            <input type="tel" name="phone" placeholder="+211…">
+          </label>
+        </div>
+
+        <div class="post-form-row-2">
+          <label class="field">
+            <span>State <span class="field-optional">(leave blank for national)</span></span>
+            <select name="state">
+              <option value="">National</option>
+              <option>Central Equatoria</option>
+              <option>Eastern Equatoria</option>
+              <option>Western Equatoria</option>
+              <option>Jonglei</option>
+              <option>Upper Nile</option>
+              <option>Unity</option>
+              <option>Lakes</option>
+              <option>Warrap</option>
+              <option>Northern Bahr el Ghazal</option>
+              <option>Western Bahr el Ghazal</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Website <span class="field-optional">(optional)</span></span>
+            <input type="url" name="website" placeholder="https://…">
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Brief description <span class="field-optional">(optional)</span></span>
+          <textarea name="description" rows="3" class="post-form-textarea"
+            placeholder="What does your organisation do? Who does it serve?"></textarea>
+        </label>
+
+        <button class="card-button u-card-button-compact-sm" type="submit">Submit Request</button>
+        <p id="join-request-msg" class="status-message"></p>
+      </form>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

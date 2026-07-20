@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Organisation Dashboard | EduPortal South Sudan</title>
+  <link rel="stylesheet" href="/static/html/announcements.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/sidebar.js"></script>
+  <script defer src="/static/app.js"></script>
+  <script defer src="/static/app/org-dashboard.js"></script>
+</head>
+<body data-page="org-dashboard">
+<div class="dashboard">
+  <nav class="sidebar"></nav>
+
+  <header class="top-banner">
+    <div>
+      <p class="eyebrow">Organisation Dashboard</p>
+      <h1 id="org-dash-title">Your Organisation</h1>
+    </div>
+    <div class="top-banner-actions"></div>
+  </header>
+
+  <main class="main-content">
+
+    <p id="org-dash-notice" class="admin-notice hidden">Organisation publisher access required.</p>
+
+    <!-- ── Stat strip ── -->
+    <div class="dash-stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:1.5rem">
+      <div class="summary-card card">
+        <p class="card-label">Announcements Posted</p>
+        <p class="card-number" id="od-ann-count">&mdash;</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Pending Review</p>
+        <p class="card-number" id="od-pending-count">&mdash;</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Organisation Type</p>
+        <p class="card-number" id="od-org-type" style="font-size:1.1rem;line-height:1.3">&mdash;</p>
+      </div>
+    </div>
+
+    <!-- ── Organisation profile ── -->
+    <section class="content-panel" style="margin-bottom:1.2rem">
+      <p class="section-label u-card-head-sm">ORGANISATION PROFILE</p>
+      <form id="od-org-form" class="post-form-grid">
+        <div class="post-form-row-2">
+          <label class="field">
+            <span>Organisation name</span>
+            <input type="text" name="name" placeholder="e.g. Ministry of General Education" required>
+          </label>
+          <label class="field">
+            <span>Organisation type</span>
+            <select name="org_type">
+              <option value="Ministry of General Education">Ministry of General Education</option>
+              <option value="State Ministry of Education">State Ministry of Education</option>
+              <option value="Examination Body">Examination Body (SSNEC)</option>
+              <option value="University">University</option>
+              <option value="College">College</option>
+              <option value="School">School</option>
+              <option value="NGO">NGO</option>
+              <option value="Scholarship Provider">Scholarship Provider</option>
+            </select>
+          </label>
+        </div>
+        <div class="post-form-row-2">
+          <label class="field">
+            <span>State <span class="field-optional">(leave blank for national)</span></span>
+            <select name="state">
+              <option value="">National</option>
+              <option>Central Equatoria</option>
+              <option>Eastern Equatoria</option>
+              <option>Western Equatoria</option>
+              <option>Jonglei</option>
+              <option>Upper Nile</option>
+              <option>Unity</option>
+              <option>Lakes</option>
+              <option>Warrap</option>
+              <option>Northern Bahr el Ghazal</option>
+              <option>Western Bahr el Ghazal</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Website <span class="field-optional">(optional)</span></span>
+            <input type="url" name="website" placeholder="https://…">
+          </label>
+        </div>
+        <div class="post-form-row-2">
+          <label class="field">
+            <span>Contact email</span>
+            <input type="email" name="email" placeholder="contact@org.ss">
+          </label>
+          <label class="field">
+            <span>Phone <span class="field-optional">(optional)</span></span>
+            <input type="tel" name="phone" placeholder="+211…">
+          </label>
+        </div>
+        <label class="field">
+          <span>Description <span class="field-optional">(optional)</span></span>
+          <textarea name="description" rows="3" class="post-form-textarea" placeholder="Brief description of your organisation…"></textarea>
+        </label>
+        <button class="card-button u-card-button-compact-sm" type="submit">Save Profile</button>
+        <p id="od-org-msg" class="status-message"></p>
+      </form>
+    </section>
+
+    <!-- ── Post announcement ── -->
+    <section class="content-panel" style="margin-bottom:1.2rem">
+      <p class="section-label u-card-head-sm">POST AN ANNOUNCEMENT</p>
+      <form id="od-ann-form" class="post-form-grid">
+        <div class="post-form-row-2">
+          <label class="field">
+            <span>Title</span>
+            <input type="text" name="title" placeholder="Announcement title" required>
+          </label>
+          <label class="field">
+            <span>Audience</span>
+            <select name="audience">
+              <option value="students">Students</option>
+              <option value="teachers">Teachers</option>
+              <option value="parents">Parents</option>
+              <option value="all">Everyone</option>
+            </select>
+          </label>
+        </div>
+        <label class="field">
+          <span>Body</span>
+          <textarea name="body" rows="4" class="post-form-textarea" placeholder="Write your announcement here…" required></textarea>
+        </label>
+        <div class="post-form-row-2">
+          <label class="field">
+            <span>Priority</span>
+            <select name="priority">
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>State <span class="field-optional">(leave blank for national)</span></span>
+            <select name="state">
+              <option value="">National / All states</option>
+              <option>Central Equatoria</option>
+              <option>Eastern Equatoria</option>
+              <option>Western Equatoria</option>
+              <option>Jonglei</option>
+              <option>Upper Nile</option>
+              <option>Unity</option>
+              <option>Lakes</option>
+              <option>Warrap</option>
+              <option>Northern Bahr el Ghazal</option>
+              <option>Western Bahr el Ghazal</option>
+            </select>
+          </label>
+        </div>
+        <div class="post-form-row-2">
+          <label class="field">
+            <span>Expires on <span class="field-optional">(optional)</span></span>
+            <input type="date" name="expires_at">
+          </label>
+          <label class="field">
+            <span>Attachment URL <span class="field-optional">(optional)</span></span>
+            <input type="url" name="attachment_url" placeholder="https://…">
+          </label>
+        </div>
+        <label class="field">
+          <span>Attach PDF file <span class="field-optional">(optional)</span></span>
+          <input type="file" name="attachment_file" accept=".pdf" class="u-file-plain-sm">
+        </label>
+        <button class="card-button u-card-button-compact-sm" type="submit">Submit for Review</button>
+        <p id="od-ann-msg" class="status-message"></p>
+      </form>
+    </section>
+
+    <!-- ── My announcements ── -->
+    <section class="content-panel">
+      <p class="section-label u-card-head-sm">MY ANNOUNCEMENTS</p>
+      <div id="od-ann-list"><p class="loading-text">Loading…</p></div>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

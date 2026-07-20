@@ -76,6 +76,16 @@
   var initials = user ? user.name.split(' ').map(function(w) { return w[0] || ''; }).join('').slice(0,2).toUpperCase() : '';
   var roleLabel = user ? user.role.replace(/_/g, ' ') : '';
 
+  // Avatar HTML helper — shows photo if stored, otherwise initials
+  function avatarHtml(sizeClass, initialsStr) {
+    var av = user && user.avatar;
+    if (av) {
+      return '<img src="' + esc(av) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'">' +
+             '<span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:inherit;font-weight:800">' + esc(initialsStr) + '</span>';
+    }
+    return esc(initialsStr);
+  }
+
   // Brand logo
   var LOGO_SVG = '<svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true"><path d="M3 11l9-6 9 6-9 6-9-6Z" stroke="white" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 13v5l5 3 5-3v-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -91,7 +101,10 @@
   html += '</div>';
   if (user) {
     html += '<div class="sidebar-account sidebar-account-compact">';
-    html += '<div class="sidebar-avatar sidebar-avatar-sm">' + esc(initials) + '</div>';
+    var sidebarAvatarContent = user && user.avatar
+      ? '<img src="' + esc(user.avatar) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.style.display=\'none\';this.insertAdjacentHTML(\'afterend\',\'<span style=\\\'display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:inherit;font-weight:800\\\'>' + esc(initials) + '</span>\');">'
+      : esc(initials);
+    html += '<div class="sidebar-avatar sidebar-avatar-sm">' + sidebarAvatarContent + '</div>';
     html += '<div class="sidebar-account-content">';
     html += '<strong class="sidebar-account-name">' + esc(user.name) + '</strong>';
     html += '<span>' + esc(roleLabel) + '</span>';
@@ -257,9 +270,13 @@
   menuWrap.className = 'user-menu-wrapper';
   menuWrap.dataset.accountMenu = 'true';
 
+  var avatarTriggerContent = user && user.avatar
+    ? '<img src="' + esc(user.avatar) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.style.display=\'none\';this.insertAdjacentHTML(\'afterend\',\'<span style=\\\'display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:inherit;font-weight:800\\\'>' + esc(initials) + '</span>\');">'
+    : '<span class="account-trigger-initials" aria-hidden="true">' + esc(initials) + '</span>';
+
   var dropdownHTML = [
     '<button class="account-trigger" type="button" aria-label="Account menu" aria-haspopup="menu" aria-expanded="false">',
-    '<span class="account-trigger-initials" aria-hidden="true">' + esc(initials) + '</span>',
+    avatarTriggerContent,
     '</button>',
     '<div class="dropdown-menu" role="menu">',
     '<div class="dropdown-user-info">',

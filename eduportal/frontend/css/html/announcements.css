@@ -4109,3 +4109,20 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   margin-top: 0.3rem !important;
 }
 
+
+/* ── Announcement priority badges ── */
+.ann-priority-urgent {
+  background: rgba(192,57,43,0.12);
+  color: #c0392b;
+}
+.ann-priority-high {
+  background: rgba(184,96,0,0.12);
+  color: #b86000;
+}
+
+/* ── Org icon column ── */
+.ann-org-icon {
+  display: block;
+  text-align: center;
+  line-height: 1;
+}

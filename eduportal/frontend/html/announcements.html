@@ -9,6 +9,7 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script defer src="/static/sidebar.js"></script>
   <script defer src="/static/app.js"></script>
+  <script defer src="/static/app/announcements.js"></script>
 </head>
 <body data-page="announcements">
   <div class="dashboard">
@@ -17,39 +18,56 @@
     <header class="top-banner">
       <div>
         <p class="eyebrow">Announcements</p>
-        <h1>Notices from the Ministry, SSNEC, and schools.</h1>
+        <h1>Notices from the Ministry, SSNEC, universities, schools &amp; more.</h1>
       </div>
       <div class="top-banner-actions"></div>
     </header>
 
     <main class="main-content">
 
+      <!-- ── Filter toolbar ── -->
       <section class="toolbar-card card">
         <form id="announcements-filter-form" class="filter-row">
-          <input name="search" type="search" placeholder="Search announcements&hellip;">
-          <select name="source" title="Filter by source">
-            <option value="">All sources</option>
-            <option value="Ministry">Ministry of Education</option>
-            <option value="SSNEC">SSNEC</option>
+          <input name="search" type="search" placeholder="Search announcements…">
+
+          <select name="org_type" title="Filter by organisation type">
+            <option value="">All organisations</option>
+            <option value="Ministry of General Education">Ministry of General Education</option>
+            <option value="State Ministry of Education">State Ministry of Education</option>
+            <option value="Examination Body">Examination Body (SSNEC)</option>
+            <option value="University">University</option>
+            <option value="College">College</option>
             <option value="School">School</option>
             <option value="NGO">NGO</option>
+            <option value="Scholarship Provider">Scholarship Provider</option>
           </select>
+
           <select name="audience" title="Filter by audience">
             <option value="">All audiences</option>
             <option value="students">Students</option>
             <option value="teachers">Teachers</option>
             <option value="parents">Parents</option>
+            <option value="all">Everyone</option>
           </select>
+
+          <select name="priority" title="Filter by priority">
+            <option value="">Any priority</option>
+            <option value="urgent">🔴 Urgent</option>
+            <option value="high">🟠 High</option>
+            <option value="normal">Normal</option>
+          </select>
+
           <input type="date" name="date_from" title="From date" class="filter-date">
           <input type="date" name="date_to"   title="To date"   class="filter-date">
           <button class="card-button" type="submit">Filter</button>
         </form>
       </section>
 
-      <!-- Post form - visible to school_admin / ngo_officer / admin via JS -->
+      <!-- ── Post form — visible to org_publisher / school_admin / ngo_officer / admin ── -->
       <section id="post-announcement-section" class="content-panel hidden u-panel-bottom-md">
-        <p class="section-label u-card-head-sm">POST AN ANNOUNCEMENT</p>
+        <p class="section-label u-card-head-sm">PUBLISH AN ANNOUNCEMENT</p>
         <form id="post-announcement-form" class="post-form-grid">
+
           <div class="post-form-row-2">
             <label class="field">
               <span>Title</span>
@@ -61,34 +79,88 @@
                 <option value="students">Students</option>
                 <option value="teachers">Teachers</option>
                 <option value="parents">Parents</option>
-                <option value="all">All</option>
+                <option value="all">Everyone</option>
               </select>
             </label>
           </div>
+
           <label class="field">
             <span>Body</span>
-            <textarea name="body" rows="3" placeholder="Write your announcement here&hellip;" required class="post-form-textarea"></textarea>
+            <textarea name="body" rows="4" placeholder="Write your announcement here…" required class="post-form-textarea"></textarea>
           </label>
+
           <div class="post-form-row-2">
             <label class="field">
-              <span>Source type</span>
-              <select name="source_type">
+              <span>Organisation type</span>
+              <select name="org_type" id="post-org-type">
+                <option value="Ministry of General Education">Ministry of General Education</option>
+                <option value="State Ministry of Education">State Ministry of Education</option>
+                <option value="Examination Body">Examination Body (SSNEC)</option>
+                <option value="University">University</option>
+                <option value="College">College</option>
                 <option value="School">School</option>
                 <option value="NGO">NGO</option>
-                <option value="Ministry">Ministry</option>
-                <option value="SSNEC">SSNEC</option>
+                <option value="Scholarship Provider">Scholarship Provider</option>
               </select>
             </label>
             <label class="field">
-              <span>Expires on</span>
-              <input type="date" name="expires_at">
+              <span>Organisation name <span class="field-optional">(optional)</span></span>
+              <input type="text" name="org_name" placeholder="e.g. University of Juba">
             </label>
           </div>
+
+          <div class="post-form-row-2">
+            <label class="field">
+              <span>Priority</span>
+              <select name="priority">
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>State <span class="field-optional">(leave blank for national)</span></span>
+              <select name="state">
+                <option value="">National / All states</option>
+                <option value="Central Equatoria">Central Equatoria</option>
+                <option value="Eastern Equatoria">Eastern Equatoria</option>
+                <option value="Western Equatoria">Western Equatoria</option>
+                <option value="Jonglei">Jonglei</option>
+                <option value="Upper Nile">Upper Nile</option>
+                <option value="Unity">Unity</option>
+                <option value="Lakes">Lakes</option>
+                <option value="Warrap">Warrap</option>
+                <option value="Northern Bahr el Ghazal">Northern Bahr el Ghazal</option>
+                <option value="Western Bahr el Ghazal">Western Bahr el Ghazal</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="post-form-row-2">
+            <label class="field">
+              <span>Expires on <span class="field-optional">(optional)</span></span>
+              <input type="date" name="expires_at">
+            </label>
+            <label class="field">
+              <span>Attachment URL <span class="field-optional">(optional)</span></span>
+              <input type="url" name="attachment_url" placeholder="https://…">
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Attach PDF file <span class="field-optional">(optional — uploaded after submission)</span></span>
+            <input type="file" name="attachment_file" accept=".pdf" id="ann-file-input" class="u-file-plain-sm">
+          </label>
+
           <button class="card-button u-card-button-compact-sm" type="submit">Submit for review</button>
           <p id="post-ann-message" class="status-message"></p>
         </form>
       </section>
 
+      <!-- ── Urgent banner strip ── -->
+      <div id="urgent-banner-strip" class="hidden" style="margin-bottom:1rem"></div>
+
+      <!-- ── Results ── -->
       <section id="announcements-results" class="announcement-list"></section>
 
     </main>

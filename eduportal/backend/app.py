@@ -16,7 +16,7 @@ from werkzeug.utils import secure_filename
 log = logging.getLogger(__name__)
 
 from auth.jwt_helpers import api_err, get_current_user, log_audit, make_token, require_auth, require_role
-from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES, ALLOWED_EXTENSIONS, ALLOWED_MATERIAL_EXTS
+from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES, ALLOWED_EXTENSIONS, ALLOWED_MATERIAL_EXTS, UPLOAD_FOLDER, MATERIALS_FOLDER, ANNOUNCEMENTS_FOLDER
 from db.connection import get_db, close_conn
 from db.queries import count, execute, query_all, query_one
 from db.schema import init_db
@@ -137,6 +137,8 @@ def static_files(filename: str):
         return send_from_directory(str(ASSETS_DIR / "avatars"), filename[len("avatars/"):])
     if filename.startswith("materials/"):
         return send_from_directory(str(ASSETS_DIR / "materials"), filename[len("materials/"):])
+    if filename.startswith("announcements/"):
+        return send_from_directory(str(ASSETS_DIR / "announcements"), filename[len("announcements/"):])
 
     # Fallback: serve any .css from CSS_DIR and any .js from JS_DIR
     if filename.endswith(".css"):
@@ -250,6 +252,14 @@ def school_dashboard_page():
 def ngo_dashboard_page():
     return render_template("ngo-dashboard.html")
 
+@app.route("/org-dashboard")
+def org_dashboard_page():
+    return render_template("org-dashboard.html")
+
+@app.route("/organizations")
+def organizations_page():
+    return render_template("organizations.html")
+
 @app.route("/schools/<int:school_id>")
 def school_profile(school_id: int):
     return render_template("school.html", school_id=school_id)
@@ -299,7 +309,7 @@ def api_register():
         return api_err("name and password are required")
     if len(password) < 8:
         return api_err("Password must be at least 8 characters")
-    if role not in {"student","parent","teacher","school_admin","ngo_officer"}:
+    if role not in {"student","parent","teacher","school_admin","ngo_officer","org_publisher"}:
         return api_err("Invalid role")
     if query_one("SELECT id FROM users WHERE email=? OR phone=?", (email, phone)):
         return api_err("An account with those details already exists", 409)
@@ -345,7 +355,10 @@ def api_me_avatar():
         return api_err("Only JPG, PNG, GIF, or WEBP files are allowed")
     filename = f"user_{u['id']}.{ext}"
     stored = save_file(UPLOAD_FOLDER, filename, file.stream)
-    avatar_url = storage_url(f"/static/avatars/{filename}") if not using_s3() else storage_url(stored)
+    if using_s3():
+        avatar_url = storage_url(stored)
+    else:
+        avatar_url = f"/static/avatars/{filename}"
     execute("UPDATE users SET avatar=? WHERE id=?", (avatar_url, u["id"]))
     return jsonify({"avatar": avatar_url})
 
@@ -624,47 +637,303 @@ def api_material_download(material_id: int):
         mimetype=_material_mimetype(disk_path.name),
     )
 
+# ── Organizations ────────────────────────────────────────────────────────────
+
+VALID_ORG_TYPES = {
+    "Ministry of General Education",
+    "State Ministry of Education",
+    "University",
+    "College",
+    "School",
+    "Examination Body",
+    "NGO",
+    "Scholarship Provider",
+}
+
+@app.route("/api/organizations")
+def api_organizations():
+    org_type = request.args.get("org_type", "").strip()
+    state    = request.args.get("state", "").strip()
+    verified = request.args.get("verified", "1").strip()
+    sql = "SELECT id,name,org_type,state,email,phone,website,description,verified FROM organizations WHERE verified=?"
+    params: list = [0 if verified == "0" else 1]
+    if org_type: sql += " AND org_type=?"; params.append(org_type)
+    if state:    sql += " AND state=?";    params.append(state)
+    sql += " ORDER BY org_type, name"
+    return jsonify({"items": query_all(sql, tuple(params))})
+
+@app.route("/api/organizations/<int:org_id>")
+def api_organization_detail(org_id: int):
+    org = query_one("SELECT * FROM organizations WHERE id=?", (org_id,))
+    if not org:
+        return api_err("Organisation not found", 404)
+    return jsonify({"organization": org})
+
+@app.route("/api/admin/organizations", methods=["POST"])
+@require_role("admin")
+def api_admin_create_org():
+    import secrets
+    u    = request.current_user  # type: ignore[attr-defined]
+    data = request.get_json(silent=True) or {}
+    name     = (data.get("name") or "").strip()[:200]
+    org_type = (data.get("org_type") or "").strip()
+    state    = (data.get("state") or "").strip()[:80] or None
+    email    = (data.get("email") or "").strip()[:120] or None
+    phone    = (data.get("phone") or "").strip()[:30] or None
+    website  = (data.get("website") or "").strip()[:200] or None
+    description = (data.get("description") or "").strip() or None
+    if not name or org_type not in VALID_ORG_TYPES:
+        return api_err(f"name and a valid org_type are required. Valid types: {', '.join(sorted(VALID_ORG_TYPES))}")
+    if not email:
+        return api_err("A contact email is required to send the admin invitation")
+    oid = execute(
+        "INSERT INTO organizations (name,org_type,state,email,phone,website,description,verified) VALUES (?,?,?,?,?,?,?,1)",
+        (name, org_type, state, email, phone, website, description),
+    )
+    log_audit(u["id"], "create_org", "organization", oid)
+    # Generate invitation token
+    token = secrets.token_urlsafe(32)
+    token_hash = bcrypt.hashpw(token.encode(), bcrypt.gensalt()).decode()
+    token_hint = token[:8]
+    execute(
+        "INSERT INTO invitations (token_hash,token_hint,role,ref_id,email,used) VALUES (?,?,?,?,?,0)",
+        (token_hash, token_hint, "org_publisher", oid, email),
+    )
+    base_url = request.host_url.rstrip("/")
+    invite_link = f"{base_url}/accept-invite?token={token}"
+    body_text = (
+        f"Hello,\n\n"
+        f"You have been invited to publish announcements on behalf of {name} on EduPortal South Sudan.\n\n"
+        f"Click the link below to create your account:\n{invite_link}\n\n"
+        f"This link is single-use.\n\nEduPortal South Sudan"
+    )
+    email_sent = send_email(email, f"EduPortal — Publisher Invitation for {name}", body_text)
+    return jsonify({
+        "message": "Organisation created and invitation sent",
+        "id": oid,
+        "invite_link": invite_link,
+        "email_sent": email_sent,
+    }), 201
+
+@app.route("/api/admin/organizations/<int:org_id>", methods=["PUT"])
+@require_role("admin")
+def api_admin_update_org(org_id: int):
+    u    = request.current_user  # type: ignore[attr-defined]
+    data = request.get_json(silent=True) or {}
+    allowed = ["name", "org_type", "state", "email", "phone", "website", "description", "verified"]
+    sets, params = [], []
+    for field in allowed:
+        if field in data:
+            sets.append(f"{field}=?")
+            params.append(data[field])
+    if not sets:
+        return api_err("No updatable fields provided")
+    params.append(org_id)
+    execute(f"UPDATE organizations SET {', '.join(sets)} WHERE id=?", tuple(params))  # noqa: S608
+    log_audit(u["id"], "update_org", "organization", org_id)
+    return jsonify({"message": "Organisation updated"})
+
+@app.route("/api/admin/organizations/<int:org_id>", methods=["DELETE"])
+@require_role("admin")
+def api_admin_delete_org(org_id: int):
+    u = request.current_user  # type: ignore[attr-defined]
+    execute("DELETE FROM organizations WHERE id=?", (org_id,))
+    log_audit(u["id"], "delete_org", "organization", org_id)
+    return jsonify({"message": "Organisation deleted"})
+
+@app.route("/api/organizations/request", methods=["POST"])
+def api_org_join_request():
+    """Public endpoint — any visitor can request their org be listed.
+    Creates an unverified record; admin reviews and sends an invite."""
+    data        = request.get_json(silent=True) or {}
+    name        = (data.get("name") or "").strip()[:200]
+    org_type    = (data.get("org_type") or "").strip()
+    state       = (data.get("state") or "").strip()[:80] or None
+    email       = (data.get("email") or "").strip()[:120] or None
+    phone       = (data.get("phone") or "").strip()[:30] or None
+    website     = (data.get("website") or "").strip()[:200] or None
+    description = (data.get("description") or "").strip() or None
+    if not name or org_type not in VALID_ORG_TYPES:
+        return api_err(f"name and a valid org_type are required. Valid types: {', '.join(sorted(VALID_ORG_TYPES))}")
+    if not email:
+        return api_err("A contact email is required")
+    existing = query_one(
+        "SELECT id FROM organizations WHERE lower(email)=? AND verified=0",
+        (email.lower(),),
+    )
+    if existing:
+        return jsonify({"message": "A request from this email is already pending review."}), 200
+    oid = execute(
+        "INSERT INTO organizations (name,org_type,state,email,phone,website,description,verified) "
+        "VALUES (?,?,?,?,?,?,?,0)",
+        (name, org_type, state, email, phone, website, description),
+    )
+    return jsonify({
+        "message": "Request submitted. Our team will review and contact you at the email provided.",
+        "id": oid,
+    }), 201
+
+@app.route("/api/my-org/profile", methods=["PUT"])
+@require_role("org_publisher")
+def api_my_org_profile_update():
+    """Org publisher can update their own organisation's public profile."""
+    u    = request.current_user  # type: ignore[attr-defined]
+    data = request.get_json(silent=True) or {}
+    inv  = query_one(
+        "SELECT ref_id FROM invitations WHERE email=? AND role='org_publisher' AND used=1 ORDER BY id DESC LIMIT 1",
+        (u.get("email") or "",),
+    )
+    if not inv or not inv["ref_id"]:
+        return api_err("No organisation linked to your account", 404)
+    org_id = inv["ref_id"]
+    allowed = ["name", "state", "email", "phone", "website", "description"]
+    sets, params = [], []
+    for field in allowed:
+        if field in data:
+            sets.append(f"{field}=?")
+            params.append(data[field])
+    if not sets:
+        return api_err("No updatable fields provided")
+    params.append(org_id)
+    execute(f"UPDATE organizations SET {', '.join(sets)} WHERE id=?", tuple(params))  # noqa: S608
+    return jsonify({"message": "Organisation profile updated"})
+
 # ── Announcements ─────────────────────────────────────────────────────────────
 
 @app.route("/api/announcements")
 def api_announcements():
-    source     = request.args.get("source","").strip()
-    audience   = request.args.get("audience","").strip()
-    date_from  = request.args.get("date_from","").strip()
-    date_to    = request.args.get("date_to","").strip()
-    search     = request.args.get("search","").strip()
-    approved   = request.args.get("approved","1").strip()
+    source     = request.args.get("source", "").strip()      # legacy: source_type
+    org_type   = request.args.get("org_type", "").strip()
+    audience   = request.args.get("audience", "").strip()
+    priority   = request.args.get("priority", "").strip()
+    state      = request.args.get("state", "").strip()
+    date_from  = request.args.get("date_from", "").strip()
+    date_to    = request.args.get("date_to", "").strip()
+    search     = request.args.get("search", "").strip()
+    approved   = request.args.get("approved", "1").strip()
     approved_val = 0 if approved == "0" else 1
-    sql = "SELECT id,title,body,source_type,audience,expires_at,created_at FROM announcements WHERE approved=?"
+    sql = (
+        "SELECT id,title,body,source_type,org_type,org_name,org_id,"
+        "audience,priority,state,attachment_url,attachment_path,expires_at,created_at "
+        "FROM announcements WHERE approved=?"
+    )
     params: list = [approved_val]
-    if source:    sql += " AND source_type=?";                  params.append(source)
-    if audience:  sql += " AND audience=?";                     params.append(audience)
-    if date_from: sql += " AND date(created_at) >= date(?)";    params.append(date_from)
-    if date_to:   sql += " AND date(created_at) <= date(?)";    params.append(date_to)
+    if source:    sql += " AND source_type=?";                params.append(source)
+    if org_type:  sql += " AND org_type=?";                  params.append(org_type)
+    if audience:  sql += " AND audience=?";                  params.append(audience)
+    if priority:  sql += " AND priority=?";                  params.append(priority)
+    if state:     sql += " AND (state=? OR state IS NULL)";  params.append(state)
+    if date_from: sql += " AND date(created_at) >= date(?)"; params.append(date_from)
+    if date_to:   sql += " AND date(created_at) <= date(?)"; params.append(date_to)
     if search:
-        sql += " AND (title LIKE ? OR body LIKE ?)"
-        t = f"%{search}%"; params.extend([t, t])
-    sql += " ORDER BY created_at DESC"
+        sql += " AND (title LIKE ? OR body LIKE ? OR org_name LIKE ?)"
+        t = f"%{search}%"; params.extend([t, t, t])
+    sql += " ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END, created_at DESC"
     return jsonify({"items": query_all(sql, tuple(params))})
 
 @app.route("/api/announcements", methods=["POST"])
-@require_role("school_admin","ngo_officer")
+@require_role("school_admin", "ngo_officer", "org_publisher", "admin")
 def api_announcements_post():
     u    = request.current_user  # type: ignore[attr-defined]
     data = request.get_json(silent=True) or {}
-    title      = (data.get("title") or "").strip()
-    body       = (data.get("body") or "").strip()
-    source_type = (data.get("source_type") or "School").strip()
-    audience   = (data.get("audience") or "").strip()
-    expires_at = (data.get("expires_at") or "").strip() or None
+    title          = (data.get("title") or "").strip()
+    body           = (data.get("body") or "").strip()
+    audience       = (data.get("audience") or "").strip()
+    expires_at     = (data.get("expires_at") or "").strip() or None
+    priority       = (data.get("priority") or "normal").strip()
+    attachment_url = (data.get("attachment_url") or "").strip() or None
+    ann_state      = (data.get("state") or "").strip() or None
     if not all([title, body, audience]):
         return api_err("title, body, and audience are required")
+    if priority not in {"normal", "high", "urgent"}:
+        priority = "normal"
+    # Resolve org context from the posting user
+    org_type = org_name = None
+    org_id   = None
+    if u["role"] == "org_publisher":
+        # Find the org this user was invited to manage
+        inv = query_one(
+            "SELECT ref_id FROM invitations WHERE email=? AND role='org_publisher' AND used=1 ORDER BY id DESC LIMIT 1",
+            (u.get("email") or "",),
+        )
+        if inv and inv["ref_id"]:
+            org = query_one("SELECT id,name,org_type FROM organizations WHERE id=?", (inv["ref_id"],))
+            if org:
+                org_id   = org["id"]
+                org_name = org["name"]
+                org_type = org["org_type"]
+    elif u["role"] == "school_admin":
+        org_type = "School"
+        if u.get("school_id"):
+            school = query_one("SELECT name FROM schools WHERE id=?", (u["school_id"],))
+            org_name = school["name"] if school else None
+            org_id   = u["school_id"]
+    elif u["role"] == "ngo_officer":
+        org_type = "NGO"
+        ngo = query_one(
+            "SELECT id,org_name FROM ngos WHERE email=? OR phone=?",
+            (u.get("email") or "", u.get("phone") or ""),
+        )
+        if ngo:
+            org_name = ngo["org_name"]
+            org_id   = ngo["id"]
+    elif u["role"] == "admin":
+        org_type = (data.get("org_type") or "Ministry of General Education").strip()
+        org_name = (data.get("org_name") or "").strip() or None
+        org_id   = data.get("org_id")
+    # Legacy source_type for backward compat
+    source_type = org_type or (data.get("source_type") or "School").strip()
     approved = 1 if u["role"] == "admin" else 0
     aid = execute(
-        "INSERT INTO announcements (title,body,source_type,source_id,audience,expires_at,approved) VALUES (?,?,?,?,?,?,?)",
-        (title, body, source_type, u["id"], audience, expires_at, approved),
+        "INSERT INTO announcements "
+        "(title,body,source_type,source_id,org_type,org_name,org_id,"
+        "audience,priority,state,attachment_url,expires_at,approved) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (title, body, source_type, u["id"], org_type, org_name, org_id,
+         audience, priority, ann_state, attachment_url, expires_at, approved),
     )
-    return jsonify({"message": "Announcement submitted", "id": aid}), 201
+    return jsonify({"message": "Announcement submitted for review", "id": aid}), 201
+
+@app.route("/api/announcements/<int:ann_id>/upload", methods=["POST"])
+@require_role("school_admin", "ngo_officer", "org_publisher", "admin")
+def api_announcement_upload(ann_id: int):
+    """Attach a PDF file to an existing announcement."""
+    u = request.current_user  # type: ignore[attr-defined]
+    ann = query_one("SELECT * FROM announcements WHERE id=?", (ann_id,))
+    if not ann:
+        return api_err("Announcement not found", 404)
+    if u["role"] != "admin" and ann["source_id"] != u["id"]:
+        return api_err("Forbidden", 403)
+    if "file" not in request.files:
+        return api_err("No file provided")
+    f = request.files["file"]
+    if not f.filename:
+        return api_err("Empty filename")
+    ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+    if ext not in {"pdf"}:
+        return api_err("Only PDF files are allowed for announcement attachments")
+    safe_name = f"ann_{ann_id}_{secure_filename(f.filename)}"
+    ANNOUNCEMENTS_FOLDER.mkdir(parents=True, exist_ok=True)
+    stored = save_file(ANNOUNCEMENTS_FOLDER, safe_name, f.stream)
+    if using_s3():
+        file_path = storage_url(stored)
+    else:
+        file_path = f"/static/announcements/{safe_name}"
+    execute("UPDATE announcements SET attachment_path=? WHERE id=?", (file_path, ann_id))
+    return jsonify({"message": "File uploaded", "attachment_path": file_path})
+
+
+@app.route("/api/announcements/<int:ann_id>", methods=["DELETE"])
+@require_role("admin", "org_publisher", "school_admin", "ngo_officer")
+def api_announcement_delete(ann_id: int):
+    u = request.current_user  # type: ignore[attr-defined]
+    ann = query_one("SELECT id,source_id FROM announcements WHERE id=?", (ann_id,))
+    if not ann:
+        return api_err("Announcement not found", 404)
+    if u["role"] != "admin" and ann["source_id"] != u["id"]:
+        return api_err("You are not authorised to delete this announcement", 403)
+    execute("DELETE FROM announcements WHERE id=?", (ann_id,))
+    return jsonify({"message": "Announcement deleted"})
 
 
 # ── Scholarships ──────────────────────────────────────────────────────────────
@@ -1007,7 +1276,7 @@ def api_admin_change_role(user_id: int):
     u    = request.current_user  # type: ignore[attr-defined]
     data = request.get_json(silent=True) or {}
     new_role = (data.get("role") or "").strip()
-    valid_roles = {"student","parent","teacher","school_admin","ngo_officer","admin"}
+    valid_roles = {"student","parent","teacher","school_admin","ngo_officer","org_publisher","admin"}
     if new_role not in valid_roles:
         return api_err(f"role must be one of: {', '.join(valid_roles)}")
     execute("UPDATE users SET role=? WHERE id=?", (new_role, user_id))
@@ -1344,7 +1613,7 @@ def api_accept_invite():
         "INSERT INTO users (name,email,password_hash,role,state,county,verified) VALUES (?,?,?,?,?,?,1)",
         (name, inv["email"], pw_hash, inv["role"], "", ""),
     )
-    # Link user to their school or NGO
+    # Link user to their school, NGO, or org
     if inv["role"] == "school_admin" and inv["ref_id"]:
         execute("UPDATE users SET school_id=? WHERE id=?", (inv["ref_id"], uid))
     # Mark invitation as used
@@ -1385,6 +1654,9 @@ def api_invitation_check():
     elif inv["role"] == "ngo_officer" and inv["ref_id"]:
         ngo = query_one("SELECT org_name FROM ngos WHERE id=?", (inv["ref_id"],))
         entity_name = ngo["org_name"] if ngo else ""
+    elif inv["role"] == "org_publisher" and inv["ref_id"]:
+        org = query_one("SELECT name FROM organizations WHERE id=?", (inv["ref_id"],))
+        entity_name = org["name"] if org else ""
     return jsonify({"role": inv["role"], "email": inv["email"], "entity_name": entity_name})
 
 
@@ -1489,6 +1761,28 @@ def api_my_school():
         "bookmark_count": bookmark_count,
     })
 
+
+# ── Org publisher: own organisation dashboard ───────────────────────────────
+
+@app.route("/api/my-org")
+@require_role("org_publisher")
+def api_my_org():
+    u = request.current_user  # type: ignore[attr-defined]
+    inv = query_one(
+        "SELECT ref_id FROM invitations WHERE email=? AND role='org_publisher' AND used=1 ORDER BY id DESC LIMIT 1",
+        (u.get("email") or "",),
+    )
+    org = None
+    announcements: list = []
+    if inv and inv["ref_id"]:
+        org = query_one("SELECT * FROM organizations WHERE id=?", (inv["ref_id"],))
+        if org:
+            announcements = query_all(
+                "SELECT id,title,body,audience,priority,state,expires_at,approved,created_at "
+                "FROM announcements WHERE org_id=? ORDER BY created_at DESC",
+                (org["id"],),
+            )
+    return jsonify({"org": org, "announcements": announcements})
 
 # ── NGO officer: own organisation dashboard ───────────────────────────────────
 

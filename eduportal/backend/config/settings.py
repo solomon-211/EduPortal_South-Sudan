@@ -24,8 +24,9 @@ ALLOWED_MATERIAL_EXTS = {"pdf", "mp4", "webm", "ogg", "m4v"}
 MAX_AVATAR_BYTES      = 2 * 1024 * 1024    # 2 MB
 MAX_MATERIAL_BYTES    = 100 * 1024 * 1024  # 100 MB
 
-UPLOAD_FOLDER    = ASSETS_DIR / "avatars"
-MATERIALS_FOLDER = ASSETS_DIR / "materials"
+UPLOAD_FOLDER         = ASSETS_DIR / "avatars"
+MATERIALS_FOLDER      = ASSETS_DIR / "materials"
+ANNOUNCEMENTS_FOLDER  = ASSETS_DIR / "announcements"
 
 # ── PostgreSQL ────────────────────────────────────────────────────────────────
 # Prefer a full DATABASE_URL; fall back to building one from individual vars.
