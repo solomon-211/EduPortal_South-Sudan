@@ -113,6 +113,12 @@ def static_files(filename: str):
     if filename.startswith("css/auth/"):
         return send_from_directory(str(CSS_DIR / "auth"), filename[len("css/auth/"):])
 
+    # Marketing assets
+    if filename == "marketing.css":
+        return send_from_directory(str(CSS_DIR), "marketing.css", mimetype="text/css")
+    if filename == "marketing.js":
+        return send_from_directory(str(JS_DIR), "marketing.js", mimetype="text/javascript")
+
     # JavaScript compatibility
     if filename in {"app.js", "sidebar.js"}:
         return send_from_directory(str(JS_DIR), filename)
@@ -132,6 +138,16 @@ def static_files(filename: str):
     if filename.startswith("materials/"):
         return send_from_directory(str(ASSETS_DIR / "materials"), filename[len("materials/"):])
 
+    # Fallback: serve any .css from CSS_DIR and any .js from JS_DIR
+    if filename.endswith(".css"):
+        css_path = CSS_DIR / filename
+        if css_path.exists():
+            return send_from_directory(str(CSS_DIR), filename, mimetype="text/css")
+    if filename.endswith(".js"):
+        js_path = JS_DIR / filename
+        if js_path.exists():
+            return send_from_directory(str(JS_DIR), filename, mimetype="text/javascript")
+
     return jsonify({"error": "Not found"}), 404
 
 @app.before_request
@@ -148,7 +164,23 @@ def ensure_db():
 
 @app.route("/")
 def home():
-    return render_template("login.html")
+    return render_template("marketing/home.html")
+
+@app.route("/about")
+def about_page():
+    return render_template("marketing/about.html")
+
+@app.route("/programs")
+def programs_page():
+    return render_template("marketing/programs.html")
+
+@app.route("/contact")
+def contact_page():
+    return render_template("marketing/contact.html")
+
+@app.route("/partner")
+def partner_page():
+    return render_template("marketing/partner.html")
 
 @app.route("/login")
 def login_page():
