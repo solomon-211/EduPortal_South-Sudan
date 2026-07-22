@@ -1,4 +1,4 @@
-﻿/*
+ — /*
  * EduPortal South Sudan — Main Stylesheet
  * =========================================
  * Font: Inter (Google Fonts) + fallback
@@ -70,7 +70,7 @@ button, input { font: inherit; }
   color: var(--ink);
 }
 
-/* ── Login layout ── */
+/* Login layout */
 .login-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -78,7 +78,7 @@ button, input { font: inherit; }
   overflow: hidden;
 }
 
-/* ── Left panel ── */
+/* Left panel */
 .left-panel {
   position: relative;
   background:
@@ -213,7 +213,7 @@ button, input { font: inherit; }
   letter-spacing: 0.07em;
 }
 
-/* ── Right panel ── */
+/* Right panel */
 .right-panel {
   height: 100vh;
   overflow-y: auto;
@@ -363,7 +363,7 @@ button, input { font: inherit; }
 .field select { appearance: none; cursor: pointer; }
 .field select option { color: var(--ink); }
 
-/* ── Form ── */
+/* Form */
 .auth-form { display: grid; gap: 0.85rem; }
 
 .field { display: grid; gap: 0.45rem; }
@@ -839,7 +839,7 @@ input:focus { outline: none; }
   font-size: 0.8rem;
 }
 
-/* ── Account / legal pages ── */
+/* Account / legal pages */
 .settings-panel { padding: 1.6rem; }
 .settings-copy { color: #888; margin: 0.3rem 0 1.2rem; font-size: 0.9rem; }
 .settings-message { margin-bottom: 0.8rem; }
@@ -924,7 +924,7 @@ input:focus { outline: none; }
   .panel-intro, .dashboard-activity-item span, .snapshot-list span { font-size: 0.78rem; }
 }
 
-/* ── Page shell (directory / materials / opportunities) ── */
+/* Page shell (directory / materials / opportunities) */
 .page-topbar {
   display: flex;
   align-items: center;
@@ -1148,7 +1148,7 @@ body[data-page="announcements"] .page-shell {
 .section-hero h1 { margin: 0.3rem 0 0; font-family: var(--font-display); font-size: clamp(1.8rem, 3.5vw, 2.8rem); color: var(--maroon-dark); letter-spacing: -0.02em; }
 .section-copy { margin: 0; color: var(--muted); max-width: 44ch; font-size: 0.95rem; line-height: 1.6; }
 
-/* ── Filter toolbar ── */
+/* Filter toolbar */
 .toolbar-card { padding: 1rem 1.2rem; margin-bottom: 1.2rem; border-radius: 14px; background: #fff; }
 .filter-row { display: flex; gap: 0.7rem; flex-wrap: wrap; align-items: center; }
 .filter-row input[type="search"],
@@ -1168,7 +1168,7 @@ body[data-page="announcements"] .page-shell {
 .filter-row select:focus { outline: none; border-color: var(--maroon); background: #fff; box-shadow: 0 0 0 3px rgba(139,26,26,0.08); }
 .filter-row .card-button { width: auto; padding: 0.65rem 1.3rem; margin-top: 0; flex-shrink: 0; }
 
-/* ── Result cards grid ── */
+/* Result cards grid */
 .results-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
 
 .result-card {
@@ -1447,7 +1447,7 @@ body[data-page="announcements"] .page-shell {
 
 .loading-text, .empty-text { color: var(--muted); font-size: 0.9rem; padding: 1.5rem 0; text-align: center; }
 
-/* ── Dashboard snapshot as links ── */
+/* Dashboard snapshot as links */
 .snapshot-list { display: grid; gap: 0.75rem; margin-top: 0.8rem; }
 .snapshot-item {
   display: flex;
@@ -1464,12 +1464,12 @@ body[data-page="announcements"] .page-shell {
 .snapshot-item strong { font-size: 1.8rem; font-weight: 800; color: var(--maroon-dark); line-height: 1; min-width: 2.5rem; }
 .snapshot-item span { color: var(--muted); font-size: 0.88rem; }
 
-/* ── Sidebar bottom / logout ── */
+/* Sidebar bottom / logout */
 .sidebar-bottom { margin-top: auto !important; padding-top: 1rem; border-top: 1px solid rgba(233,138,38,0.18); position: sticky; bottom: 0; background: transparent; }
 .logout-link { color: rgba(255,255,255,0.5) !important; }
 .logout-link:hover { color: #e98a26 !important; background: rgba(233,138,38,0.1) !important; border-color: rgba(233,138,38,0.2) !important; }
 
-/* ── Register wide card ── */
+/* Register wide card */
 .auth-card-wide { width: min(100%, 36rem); }
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
 
@@ -1513,7 +1513,7 @@ body[data-page="announcements"] .page-shell {
   .material-card-footer { justify-content: flex-start; }
 }
 
-/* ── Detail pages ── */
+/* Detail pages */
 .back-link {
   display: inline-flex;
   align-items: center;
@@ -1582,12 +1582,10 @@ body[data-page="announcements"] .page-shell {
 }
 .detail-item span:last-child { font-weight: 600; color: var(--ink); font-size: 0.95rem; }
 
-/* ── Announcement list ── */
+/* Announcement list */
 .announcement-list { display: grid; gap: 1rem; }
 
-/* ══════════════════════════════════════════════
-   MY APPLICATIONS — Split Panel Layout
-══════════════════════════════════════════════ */
+/* MY APPLICATIONS — Split Panel Layout */
 .my-applications-page {
   display: grid;
   grid-template-columns: 300px 1fr;
@@ -1602,7 +1600,7 @@ body[data-page="announcements"] .page-shell {
   padding: 1.5rem;
 }
 
-/* ── Vertical Stepper ── */
+/* Vertical Stepper */
 .stepper { position: relative; padding: 0.5rem 0; }
 
 .step {
@@ -1655,7 +1653,7 @@ body[data-page="announcements"] .page-shell {
   margin: 0;
 }
 
-/* ── Applications Panel (right) ── */
+/* Applications Panel (right) */
 .applications-panel { overflow: hidden; }
 
 .apps-panel-header {
@@ -1809,9 +1807,7 @@ body[data-page="announcements"] .page-shell {
   .apps-list-view .app-accent { width: 100%; height: 4px; margin-right: 0; margin-bottom: 0.2rem; }
 }
 
-/* ══════════════════════════════════════════════
-   PROFILE PAGE
-══════════════════════════════════════════════ */
+/* PROFILE PAGE */
 .profile-layout {
   display: grid;
   grid-template-columns: 260px 1fr;
@@ -1906,9 +1902,7 @@ body[data-page="announcements"] .page-shell {
   .profile-fields-grid { grid-template-columns: 1fr; }
 }
 
-/* ══════════════════════════════════════════════
-   DASHBOARD — Hero Strip
-══════════════════════════════════════════════ */
+/* DASHBOARD — Hero Strip */
 .dash-hero-strip {
   display: flex;
   align-items: center;
@@ -1991,9 +1985,7 @@ body[data-page="announcements"] .page-shell {
   border: 1.5px solid rgba(255,255,255,0.15);
 }
 
-/* ══════════════════════════════════════════════
-   DASHBOARD — Stat Cards
-══════════════════════════════════════════════ */
+/* DASHBOARD — Stat Cards */
 .dash-stat-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -2032,7 +2024,7 @@ body[data-page="announcements"] .page-shell {
   border-color: rgba(139,26,26,0.12);
 }
 
-/* ── Summary cards (dashboard) ── */
+/* Summary cards (dashboard) */
 .summary-card {
   position: relative;
   padding: 1.4rem 1.4rem 1.2rem;
@@ -2168,7 +2160,7 @@ body[data-page="announcements"] .page-shell {
 }
 .dash-see-all:hover { color: var(--orange); }
 
-/* ── Quick links grid ── */
+/* Quick links grid */
 .dash-quick-links {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2198,7 +2190,7 @@ body[data-page="announcements"] .page-shell {
 }
 .dash-quick-icon { font-size: 1.4rem; line-height: 1; }
 
-/* ── Skeleton loading ── */
+/* Skeleton loading */
 .dash-skeleton-list { display: grid; gap: 0.75rem; }
 .dash-skeleton-item {
   height: 72px;
@@ -2225,9 +2217,7 @@ body[data-page="announcements"] .page-shell {
   .dash-quick-links { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* ══════════════════════════════════════════════
-   ADMIN DASHBOARD
-══════════════════════════════════════════════ */
+/* ADMIN DASHBOARD */
 .admin-tab-nav {
   display: flex;
   gap: 0.4rem;
@@ -2421,9 +2411,7 @@ body[data-page="announcements"] .page-shell {
 .admin-audit-row p { margin: 0; font-size: 0.88rem; color: var(--ink); }
 .admin-audit-row .audit-time { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
 
-/* ══════════════════════════════════════════════
-   ANNOUNCEMENTS — list & grid views
-══════════════════════════════════════════════ */
+/* ANNOUNCEMENTS — list & grid views */
 .announcements-toolbar {
   display: flex;
   align-items: center;
@@ -2501,9 +2489,7 @@ body[data-page="announcements"] .page-shell {
   .ann-list-meta { flex-direction: row; min-width: 0; }
 }
 
-/* ══════════════════════════════════════════════
-   LIBRARY — Tab Nav
-══════════════════════════════════════════════ */
+/* LIBRARY — Tab Nav */
 .library-tab-nav {
   display: flex;
   gap: 0.5rem;
@@ -2538,9 +2524,7 @@ body[data-page="announcements"] .page-shell {
 .library-tab-panel { display: none; }
 .library-tab-panel.active { display: block; }
 
-/* ══════════════════════════════════════════════
-   LIBRARY — Category Pills
-══════════════════════════════════════════════ */
+/* LIBRARY — Category Pills */
 .book-category-pills {
   display: flex;
   gap: 0.5rem;
@@ -2567,9 +2551,7 @@ body[data-page="announcements"] .page-shell {
   border-color: var(--maroon);
 }
 
-/* ══════════════════════════════════════════════
-   LIBRARY — Books Grid & Cards
-══════════════════════════════════════════════ */
+/* LIBRARY — Books Grid & Cards */
 .books-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -2692,7 +2674,7 @@ body[data-page="announcements"] .page-shell {
   .book-cover { height: 130px; }
 }
 
-/* ── Lucide icon sizing helpers ── */
+/* Lucide icon sizing helpers */
 .nav-icon svg,
 .nav-icon i { display: block; width: 15px; height: 15px; }
 .dash-quick-icon svg,
@@ -2730,7 +2712,7 @@ body[data-page="announcements"] .page-shell {
   accent-color: var(--maroon);
 }
 
-/* ── Status pills ── */
+/* Status pills */
 .status-pill {
   display: inline-flex;
   padding: 0.3rem 0.75rem;
@@ -2742,7 +2724,7 @@ body[data-page="announcements"] .page-shell {
 .status-pill.limited { background: rgba(242,140,40,0.12); color: #b86000; }
 .status-pill.closed  { background: rgba(139,26,26,0.1);  color: var(--maroon-dark); }
 
-/* ── School result card (directory) ── */
+/* School result card (directory) */
 .school-result-card {
   display: block;
   padding: 1.25rem;
@@ -2757,7 +2739,7 @@ body[data-page="announcements"] .page-shell {
 .school-result-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(47,11,11,0.12); }
 .school-result-card h3 { margin: 0.5rem 0 0.3rem; }
 
-/* ── Material card ── */
+/* Material card */
 .material-card {
   padding: 1.25rem;
   background: #fff;
@@ -2767,7 +2749,7 @@ body[data-page="announcements"] .page-shell {
 }
 .material-card h3 { margin: 0.5rem 0 0.3rem; }
 
-/* ── Announcement card ── */
+/* Announcement card */
 .announcement-card {
   padding: 1.25rem;
   background: #fff;
@@ -2777,12 +2759,10 @@ body[data-page="announcements"] .page-shell {
 }
 .announcement-card h3 { margin: 0.5rem 0 0.3rem; }
 
-/* ── Disabled button ── */
+/* Disabled button */
 button:disabled { opacity: 0.55; cursor: not-allowed; }
 
-/* ══════════════════════════════════════════════
-   PAGINATION
-══════════════════════════════════════════════ */
+/* PAGINATION */
 .pagination {
   display: flex;
   align-items: center;
@@ -2810,13 +2790,13 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .pag-btn.pag-active { background: var(--maroon); color: #fff; border-color: var(--maroon); }
 .pag-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
 
-/* ── Profile section label ── */
+/* Profile section label */
 .profile-section-label { color: var(--maroon); margin: 0 0 1rem; }
 
-/* ── Settings content-panel spacing ── */
+/* Settings content-panel spacing */
 /* (padding already set in main .content-panel rule above) */
 
-/* ── Notification preference rows ── */
+/* Notification preference rows */
 .notif-row {
   display: flex;
   align-items: center;
@@ -2828,7 +2808,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   cursor: pointer;
 }
 
-/* ── Bell notifications ── */
+/* Bell notifications */
 .bell-wrap { position: relative; margin-bottom: 0.5rem; }
 .bell-btn {
   display: flex;
@@ -2891,8 +2871,10 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .bell-item:last-child { border-bottom: 0; }
 .bell-item strong { display: block; font-size: 0.88rem; color: var(--ink); margin-bottom: 0.15rem; }
 .bell-item span { font-size: 0.78rem; color: var(--muted); }
+.bell-item-unread { background: color-mix(in srgb, var(--brand, #1d6fa4) 7%, transparent); cursor: pointer; }
+.bell-item-unread strong::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--brand, #1d6fa4); margin-right: 0.4rem; vertical-align: middle; }
 
-/* ── Top-bar notification bell ── */
+/* Top-bar notification bell */
 .top-notification-wrapper { position: relative; display: inline-flex; align-items: center; }
 .top-notification-trigger {
   width: 38px; height: 38px;
@@ -2929,7 +2911,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .top-notification-list { padding: 0.4rem 0; }
 .top-notification-empty { padding: 0.9rem 1rem; color: var(--muted); font-size: 0.85rem; margin: 0; }
 
-/* ── Account trigger button ── */
+/* Account trigger button */
 .account-trigger {
   width: 38px; height: 38px;
   border-radius: 50%;
@@ -2946,9 +2928,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 
 
-/* ══════════════════════════════════════════════
-   SCHOOL EDIT PANEL — Manage School Profile
-══════════════════════════════════════════════ */
+/* SCHOOL EDIT PANEL — Manage School Profile */
 .school-edit-panel {
   margin-top: 1.5rem;
 }
@@ -3086,9 +3066,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   .req-row .req-remove-btn { grid-column: 2; justify-self: end; }
 }
 
-/* ══════════════════════════════════════════════
-   MISSING UTILITY CLASSES — added during build
-══════════════════════════════════════════════ */
+/* MISSING UTILITY CLASSES — added during build */
 
 /* Post / upload forms */
 .post-form-grid {
@@ -3224,11 +3202,9 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   margin: 0 0 0.75rem;
 }
 
-/* ══════════════════════════════════════════════
-   DASHBOARD ENHANCEMENTS
-══════════════════════════════════════════════ */
+/* DASHBOARD ENHANCEMENTS */
 
-/* ── Hero strip: title + animated orb ── */
+/* Hero strip: title + animated orb */
 .dash-hero-title {
   margin: 0 0 0.45rem;
   font-family: var(--font-display);
@@ -3256,14 +3232,14 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   50%       { transform: scale(1.1); opacity: 1;   }
 }
 
-/* ── Stat card colored top-border accents ── */
+/* Stat card colored top-border accents */
 .summary-card--school    { border-top: 3px solid var(--maroon); }
 .summary-card--books     { border-top: 3px solid var(--orange); }
 .summary-card--scholarship { border-top: 3px solid var(--green); }
 .summary-card--bookmark  { border-top: 3px solid #1a5fa8; }
 .summary-card--apps      { border-top: 3px solid #7c3aed; }
 
-/* ── Activity column heading with icon ── */
+/* Activity column heading with icon */
 .activity-col { display: flex; flex-direction: column; gap: 0.6rem; }
 
 .activity-heading {
@@ -3280,13 +3256,13 @@ textarea.field-input { resize: vertical; min-height: 80px; }
 
 .activity-heading svg { flex-shrink: 0; opacity: 0.7; }
 
-/* ── Dashboard activity items: gap between stacked items ── */
+/* Dashboard activity items: gap between stacked items */
 #dashboard-applications > .snapshot-list-item + .snapshot-list-item,
 #dashboard-notifications > .dashboard-activity-item + .dashboard-activity-item {
   margin-top: 0.55rem;
 }
 
-/* ── Snapshot panel: live dot ── */
+/* Snapshot panel: live dot */
 .dash-live-dot {
   display: inline-block;
   width: 8px;
@@ -3305,7 +3281,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   100% { box-shadow: 0 0 0 0   rgba(26,122,60,0);   }
 }
 
-/* ── Snapshot items: icon + body + arrow layout ── */
+/* Snapshot items: icon + body + arrow layout */
 .snapshot-item {
   display: flex;
   align-items: center;
@@ -3353,7 +3329,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
 .snapshot-arrow { color: var(--muted); opacity: 0.5; flex-shrink: 0; transition: opacity 150ms, transform 150ms; }
 .snapshot-item:hover .snapshot-arrow { opacity: 1; transform: translateX(2px); }
 
-/* ── Quick links: colored icon backgrounds ── */
+/* Quick links: colored icon backgrounds */
 .dash-quick-link:nth-child(1) .dash-quick-icon { color: var(--maroon-dark); }
 .dash-quick-link:nth-child(2) .dash-quick-icon { color: #b86000; }
 .dash-quick-link:nth-child(3) .dash-quick-icon { color: var(--green); }
@@ -3366,7 +3342,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   line-height: 1.3;
 }
 
-/* ── Empty state text ── */
+/* Empty state text */
 .empty-text {
   color: var(--muted);
   font-size: 0.88rem;
@@ -3375,17 +3351,15 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   line-height: 1.6;
 }
 
-/* ── Content panel gap fix (remove inline style dependency) ── */
+/* Content panel gap fix (remove inline style dependency) */
 .dash-left-col > .content-panel + .content-panel,
 .dash-right-col > .content-panel + .content-panel {
   margin-top: 1rem;
 }
 
-/* ══════════════════════════════════════════════
-   AUTH PAGES — Login & Register Enhancements
-══════════════════════════════════════════════ */
+/* AUTH PAGES — Login & Register Enhancements */
 
-/* ── Left panel brand mark ── */
+/* Left panel brand mark */
 .lp-brand-mark {
   display: inline-flex;
   align-items: center;
@@ -3397,7 +3371,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   letter-spacing: 0.02em;
 }
 
-/* ── Floating particles ── */
+/* Floating particles */
 .lp-particles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .lp-particle {
   position: absolute;
@@ -3417,7 +3391,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   100% { transform: translateY(0)   rotate(360deg); opacity: 0.6; }
 }
 
-/* ── Feature cards on left panel ── */
+/* Feature cards on left panel */
 .lp-feature-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3463,7 +3437,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   color: rgba(255,255,255,0.6);
 }
 
-/* ── Slogan block ── */
+/* Slogan block */
 .lp-slogan {
   margin-top: 1.4rem;
   padding: 1.1rem 1.2rem;
@@ -3491,7 +3465,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   line-height: 1.6;
 }
 
-/* ── Auth eyebrow ── */
+/* Auth eyebrow */
 .auth-eyebrow {
   margin: 0 0 0.3rem;
   font-size: 0.72rem;
@@ -3501,7 +3475,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   color: var(--orange);
 }
 
-/* ── Trust badge row ── */
+/* Trust badge row */
 .auth-trust-row {
   display: flex;
   align-items: center;
@@ -3528,7 +3502,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
 .auth-trust-badge svg { flex-shrink: 0; color: var(--maroon); opacity: 0.7; }
 .recovery-note { margin-top: -0.2rem; }
 
-/* ── Register: section labels ── */
+/* Register: section labels */
 .register-section-label {
   display: flex;
   align-items: center;
@@ -3542,7 +3516,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
 }
 .register-section-label svg { flex-shrink: 0; opacity: 0.7; }
 
-/* ── Register: optional field label ── */
+/* Register: optional field label */
 .field-optional {
   font-size: 0.7rem;
   font-weight: 600;
@@ -3552,7 +3526,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   margin-left: 0.3rem;
 }
 
-/* ── Register: progress bar ── */
+/* Register: progress bar */
 .register-progress {
   height: 3px;
   border-radius: 999px;
@@ -3568,7 +3542,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   transition: width 400ms ease;
 }
 
-/* ── Register: password strength ── */
+/* Register: password strength */
 .pw-strength-wrap {
   display: none;
   height: 3px;
@@ -3590,7 +3564,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   min-height: 1rem;
 }
 
-/* ── Registration steps on left panel ── */
+/* Registration steps on left panel */
 .lp-steps {
   display: flex;
   flex-direction: column;
@@ -3647,7 +3621,7 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   color: rgba(255,255,255,0.55);
 }
 
-/* ── Input wrap: select inside input-wrap ── */
+/* Input wrap: select inside input-wrap */
 .input-wrap select {
   width: 100%;
   border: 1.5px solid rgba(91,15,15,0.12);
@@ -3667,10 +3641,10 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   box-shadow: 0 0 0 3.5px rgba(139,26,26,0.09);
 }
 
-/* ── Right panel scroll fix on short screens ── */
+/* Right panel scroll fix on short screens */
 .right-panel { overflow-y: auto; }
 
-/* ── Responsive: stack on mobile ── */
+/* Responsive: stack on mobile */
 @media (max-width: 720px) {
   .lp-feature-cards { grid-template-columns: 1fr; }
   .lp-feature-card:last-child { grid-column: auto; }

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
+import bcrypt
 import jwt
 from flask import jsonify, request
 
 from config.settings import JWT_SECRET
-from db.queries import execute, query_one
+from db.queries import execute, query_all, query_one
+
+ACCESS_TOKEN_TTL = timedelta(hours=2)
+REFRESH_TOKEN_TTL = timedelta(days=30)
 
 
 def make_token(user: dict) -> str:
@@ -15,9 +20,68 @@ def make_token(user: dict) -> str:
         "sub": str(user["id"]),
         "name": user["name"],
         "role": user["role"],
-        "exp": datetime.now(timezone.utc) + timedelta(hours=24),
+        "exp": datetime.now(timezone.utc) + ACCESS_TOKEN_TTL,
     }
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
+
+def make_refresh_token(user_id: int) -> str:
+    """Issue a new refresh token for user_id and store its hash. Returns the raw token."""
+    raw = secrets.token_urlsafe(32)
+    token_hash = bcrypt.hashpw(raw.encode(), bcrypt.gensalt()).decode()
+    expires_at = (datetime.now(timezone.utc) + REFRESH_TOKEN_TTL).isoformat()
+    execute(
+        "INSERT INTO refresh_tokens (user_id, token_hash, token_hint, expires_at) VALUES (?,?,?,?)",
+        (user_id, token_hash, raw[:8], expires_at),
+    )
+    return raw
+
+
+def _refresh_row(raw_token: str) -> dict | None:
+    candidates = query_all("SELECT * FROM refresh_tokens WHERE token_hint=?", (raw_token[:8],))
+    for row in candidates:
+        try:
+            if bcrypt.checkpw(raw_token.encode(), row["token_hash"].encode()):
+                return row
+        except Exception:
+            continue
+    return None
+
+
+def verify_refresh_token(raw_token: str) -> dict | None:
+    """Return the owning user if raw_token is a live, unexpired, unrevoked refresh token."""
+    if not raw_token:
+        return None
+    row = _refresh_row(raw_token)
+    if not row or row.get("revoked_at"):
+        return None
+    expires_raw = str(row.get("expires_at") or "").replace("Z", "+00:00")
+    try:
+        expires_at = datetime.fromisoformat(expires_raw)
+    except ValueError:
+        return None
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expires_at:
+        return None
+    user = query_one("SELECT * FROM users WHERE id=?", (row["user_id"],))
+    if not user or int(user.get("verified", 0)) < 1:
+        return None
+    execute("UPDATE refresh_tokens SET revoked_at=CURRENT_TIMESTAMP WHERE id=?", (row["id"],))
+    return user
+
+
+def revoke_refresh_token(raw_token: str) -> None:
+    row = _refresh_row(raw_token) if raw_token else None
+    if row:
+        execute("UPDATE refresh_tokens SET revoked_at=CURRENT_TIMESTAMP WHERE id=?", (row["id"],))
+
+
+def revoke_all_refresh_tokens(user_id: int) -> None:
+    execute(
+        "UPDATE refresh_tokens SET revoked_at=CURRENT_TIMESTAMP WHERE user_id=? AND revoked_at IS NULL",
+        (user_id,),
+    )
 
 
 def get_current_user() -> dict | None:

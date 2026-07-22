@@ -9,7 +9,7 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# ── Make backend/ importable so config.settings resolves ─────────────────────
+# Make backend/ importable so config.settings resolves
 _HERE = Path(__file__).resolve().parent          # alembic/
 _ROOT = _HERE.parent                             # eduportal/
 _BACKEND = _ROOT / "backend"
@@ -21,14 +21,14 @@ from dotenv import load_dotenv
 load_dotenv(_ROOT / ".env")
 
 
-# ── Build the PostgreSQL URL ──────────────────────────────────────────────────
+# Build the PostgreSQL URL
 
 def _db_url() -> str:
     from config.settings import DATABASE_URL
     return DATABASE_URL
 
 
-# ── Alembic Config ────────────────────────────────────────────────────────────
+# Alembic Config
 config = context.config
 config.set_main_option("sqlalchemy.url", _db_url())
 
@@ -39,7 +39,7 @@ if config.config_file_name is not None:
 target_metadata = None
 
 
-# ── Migration runners ─────────────────────────────────────────────────────────
+# Migration runners
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")

@@ -40,7 +40,7 @@ def _run_alembic() -> None:
         log.info("Alembic: %s", result.stdout.strip())
 
 
-# ── Seed data (runs only on a fresh empty database) ──────────────────────────
+# Seed data (runs only on a fresh empty database)
 
 def _seed(conn) -> None:
     from sqlalchemy import text

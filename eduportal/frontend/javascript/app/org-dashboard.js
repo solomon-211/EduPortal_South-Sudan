@@ -22,7 +22,7 @@
     el.className = 'status-message ' + (ok ? 'is-success' : 'is-error');
   }
 
-  // ── Load org profile & announcements ──────────────────────────────────────
+  // Load org profile & announcements
 
   async function loadDashboard() {
     try {
@@ -102,7 +102,7 @@
               <span class="tag tag-muted">${escHtml(a.audience || 'all')}</span>
               ${a.state ? `<span class="tag tag-muted">${escHtml(a.state)}</span>` : '<span class="tag tag-muted">National</span>'}
               ${a.expires_at ? `<span class="deadline-badge">Expires ${fmtDate(a.expires_at)}</span>` : ''}
-              ${a.attachment_path ? `<a href="${escHtml(a.attachment_path)}" target="_blank" rel="noopener" class="card-link" style="font-size:.8rem">📎 Attachment</a>` : ''}
+              ${a.attachment_path ? `<a href="${escHtml(a.attachment_path)}" target="_blank" rel="noopener" class="card-link" style="font-size:.8rem"><i data-lucide="paperclip" width="13" height="13"></i> Attachment</a>` : ''}
             </div>
           </div>
           <div class="admin-approve-actions">
@@ -110,9 +110,10 @@
           </div>
         </div>`;
     }).join('');
+    if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
   }
 
-  // ── Delete announcement ───────────────────────────────────────────────────
+  // Delete announcement
 
   window._odDelete = async function (id) {
     if (!confirm('Delete this announcement?')) return;
@@ -126,7 +127,7 @@
     }
   };
 
-  // ── Save org profile ──────────────────────────────────────────────────────
+  // Save org profile
 
   async function handleOrgSave(e) {
     e.preventDefault();
@@ -149,7 +150,7 @@
     btn.disabled = false;
   }
 
-  // ── Post announcement ─────────────────────────────────────────────────────
+  // Post announcement
 
   async function handleAnnPost(e) {
     e.preventDefault();
@@ -187,7 +188,7 @@
     btn.disabled = false;
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // Init
 
   function init() {
     const stored = localStorage.getItem('user');

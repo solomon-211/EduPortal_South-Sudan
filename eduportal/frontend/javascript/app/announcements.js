@@ -11,17 +11,17 @@
   };
 
   const ORG_TYPE_ICON = {
-    'Ministry of General Education': '🏛️',
-    'State Ministry of Education':   '🏢',
-    'Examination Body':              '📋',
-    'University':                    '🎓',
-    'College':                       '🏫',
-    'School':                        '🏫',
-    'NGO':                           '🤝',
-    'Scholarship Provider':          '💰',
+    'Ministry of General Education': 'landmark',
+    'State Ministry of Education':   'building-2',
+    'Examination Body':              'clipboard-check',
+    'University':                    'graduation-cap',
+    'College':                       'school',
+    'School':                        'school',
+    'NGO':                           'handshake',
+    'Scholarship Provider':          'coins',
   };
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // Helpers
 
   function token() {
     return localStorage.getItem('token') || '';
@@ -44,11 +44,11 @@
       .replace(/"/g, '&quot;');
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // Render
 
   function renderCard(ann) {
     const pm      = PRIORITY_META[ann.priority] || PRIORITY_META.normal;
-    const icon    = ORG_TYPE_ICON[ann.org_type] || ORG_TYPE_ICON[ann.source_type] || '📢';
+    const icon    = ORG_TYPE_ICON[ann.org_type] || ORG_TYPE_ICON[ann.source_type] || 'megaphone';
     const orgName = escHtml(ann.org_name || ann.source_type || 'EduPortal');
     const orgType = escHtml(ann.org_type || ann.source_type || '');
     const stateTag = ann.state
@@ -64,15 +64,15 @@
       ? `<span class="deadline-badge">Expires ${fmtDate(ann.expires_at)}</span>`
       : '';
     const attachBtn = ann.attachment_path
-      ? `<a href="${escHtml(ann.attachment_path)}" target="_blank" rel="noopener" class="card-link">📎 Download attachment</a>`
+      ? `<a href="${escHtml(ann.attachment_path)}" target="_blank" rel="noopener" class="card-link"><i data-lucide="paperclip" width="14" height="14"></i> Download attachment</a>`
       : ann.attachment_url
-      ? `<a href="${escHtml(ann.attachment_url)}" target="_blank" rel="noopener" class="card-link">View attachment ↗</a>`
+      ? `<a href="${escHtml(ann.attachment_url)}" target="_blank" rel="noopener" class="card-link"><i data-lucide="external-link" width="14" height="14"></i> View attachment</a>`
       : '';
 
     return `
       <article class="ann-list-item">
         <div class="ann-list-meta">
-          <span class="ann-org-icon" title="${orgType}" style="font-size:1.6rem;line-height:1">${icon}</span>
+          <i class="ann-org-icon" data-lucide="${icon}" title="${orgType}" width="26" height="26"></i>
           ${stateTag}
           ${priorityTag}
         </div>
@@ -94,7 +94,7 @@
       </article>`;
   }
 
-  // ── Fetch & display ────────────────────────────────────────────────────────
+  // Fetch & display
 
   function buildQuery(formData) {
     const p = new URLSearchParams();
@@ -114,7 +114,7 @@
       <div style="display:flex;align-items:flex-start;gap:.85rem;padding:1rem 1.3rem;
         background:linear-gradient(135deg,rgba(192,57,43,0.1),rgba(192,57,43,0.05));
         border:1.5px solid rgba(192,57,43,0.25);border-radius:14px;margin-bottom:.6rem">
-        <span style="font-size:1.4rem;flex-shrink:0">🚨</span>
+        <i data-lucide="triangle-alert" width="22" height="22" style="flex-shrink:0;color:#c0392b"></i>
         <div style="flex:1;min-width:0">
           <p style="margin:0 0 .2rem;font-weight:800;color:#c0392b;font-size:.95rem">${escHtml(a.title)}</p>
           <p style="margin:0;font-size:.84rem;color:#888">${escHtml(a.body).slice(0,200)}${a.body.length>200?'…':''}</p>
@@ -124,6 +124,7 @@
           </p>
         </div>
       </div>`).join('');
+    if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
   }
 
   async function loadAnnouncements(qs) {
@@ -140,12 +141,13 @@
         return;
       }
       el.innerHTML = items.map(renderCard).join('');
+      if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
     } catch {
       el.innerHTML = '<p class="empty-text">Failed to load announcements.</p>';
     }
   }
 
-  // ── Post form ──────────────────────────────────────────────────────────────
+  // Post form
 
   async function handlePost(e) {
     e.preventDefault();
@@ -217,7 +219,7 @@
     }
   }
 
-  // ── Init ───────────────────────────────────────────────────────────────────
+  // Init
 
   function init() {
     // Show post form for authorised roles

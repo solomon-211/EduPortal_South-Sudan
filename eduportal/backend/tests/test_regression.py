@@ -15,17 +15,17 @@ import sys
 
 import pytest
 
-# ── Path setup ────────────────────────────────────────────────────────────────
+# Path setup
 # Make sure backend/ is importable
 _BACKEND = os.path.dirname(os.path.dirname(__file__))
 if _BACKEND not in sys.path:
     sys.path.insert(0, _BACKEND)
 
-# ── Switch to SQLite before anything else imports the engine ──────────────────
+# Switch to SQLite before anything else imports the engine
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret")
 
-# ── Now safe to import app ────────────────────────────────────────────────────
+# Now safe to import app
 from db.connection import engine  # noqa: E402 — must come after env setup
 from sqlalchemy import text
 
@@ -203,12 +203,31 @@ def _apply_schema() -> None:
             title TEXT NOT NULL,
             body TEXT NOT NULL DEFAULT '',
             read INTEGER NOT NULL DEFAULT 0,
+            ref_type TEXT,
+            ref_id INTEGER,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS email_verifications (
             user_id INTEGER PRIMARY KEY,
             token TEXT NOT NULL,
             expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS refresh_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token_hash TEXT NOT NULL,
+            token_hint TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at TEXT NOT NULL,
+            revoked_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """
@@ -232,7 +251,7 @@ from app import app as flask_app, limiter as _limiter  # noqa: E402
 _limiter.enabled = False
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# Helpers
 
 @pytest.fixture(scope="session")
 def client():
@@ -265,11 +284,17 @@ def _login(client, email: str, password: str = "Password1!") -> str:
     return rv.get_json()["token"]
 
 
+def _login_full(client, email: str, password: str = "Password1!") -> dict:
+    rv = client.post("/api/login", json={"identifier": email, "password": password})
+    assert rv.status_code == 200, rv.get_json()
+    return rv.get_json()
+
+
 def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-# ── Auth ──────────────────────────────────────────────────────────────────────
+# Auth
 
 class TestAuth:
     def test_register_success(self, client):
@@ -366,7 +391,52 @@ class TestAuth:
         assert rv.status_code == 401
 
 
-# ── Stats ─────────────────────────────────────────────────────────────────────
+class TestRefreshTokens:
+    def test_login_issues_refresh_token(self, client):
+        _register(client, "jill@test.ss")
+        data = _login_full(client, "jill@test.ss")
+        assert data.get("refresh_token")
+
+    def test_refresh_issues_new_access_token(self, client):
+        _register(client, "kevin@test.ss")
+        data = _login_full(client, "kevin@test.ss")
+        rv = client.post("/api/refresh", json={"refresh_token": data["refresh_token"]})
+        assert rv.status_code == 200
+        refreshed = rv.get_json()
+        assert refreshed["token"]
+        assert refreshed["refresh_token"] != data["refresh_token"]
+
+    def test_refresh_token_is_single_use(self, client):
+        _register(client, "laura@test.ss")
+        data = _login_full(client, "laura@test.ss")
+        first = client.post("/api/refresh", json={"refresh_token": data["refresh_token"]})
+        assert first.status_code == 200
+        second = client.post("/api/refresh", json={"refresh_token": data["refresh_token"]})
+        assert second.status_code == 401
+
+    def test_refresh_rejects_garbage_token(self, client):
+        rv = client.post("/api/refresh", json={"refresh_token": "not-a-real-token"})
+        assert rv.status_code == 401
+
+    def test_logout_revokes_refresh_token(self, client):
+        _register(client, "mike@test.ss")
+        data = _login_full(client, "mike@test.ss")
+        rv = client.post("/api/logout", json={"refresh_token": data["refresh_token"]})
+        assert rv.status_code == 200
+        rv2 = client.post("/api/refresh", json={"refresh_token": data["refresh_token"]})
+        assert rv2.status_code == 401
+
+    def test_change_password_revokes_other_sessions(self, client):
+        _register(client, "nancy@test.ss")
+        data = _login_full(client, "nancy@test.ss")
+        client.post("/api/change-password", json={
+            "current_password": "Password1!", "new_password": "NewPass99!",
+        }, headers=_auth(data["token"]))
+        rv = client.post("/api/refresh", json={"refresh_token": data["refresh_token"]})
+        assert rv.status_code == 401
+
+
+# Stats
 
 class TestStats:
     def test_stats_public(self, client):
@@ -402,7 +472,7 @@ class TestStats:
         assert "items" in rv.get_json()
 
 
-# ── Materials ─────────────────────────────────────────────────────────────────
+# Materials
 
 class TestMaterials:
     def test_list_materials_public(self, client):
@@ -460,7 +530,7 @@ class TestMaterials:
         assert data["page"] == 1
 
 
-# ── Bookmarks ─────────────────────────────────────────────────────────────────
+# Bookmarks
 
 class TestBookmarks:
     def test_bookmarks_requires_auth(self, client):
@@ -490,7 +560,7 @@ class TestBookmarks:
         assert rv.status_code == 400
 
 
-# ── Video upload security ─────────────────────────────────────────────────────
+# Video upload security
 
 class TestVideoUpload:
     def _teacher_token(self, client, email: str) -> str:
@@ -573,7 +643,24 @@ class TestVideoUpload:
         assert rv.status_code == 401
 
 
-# ── Health ────────────────────────────────────────────────────────────────────
+# Health
+
+class TestPageRoutes:
+    """Rendered HTML pages — catches template/context bugs the API tests can't see."""
+
+    @pytest.mark.parametrize("path", [
+        "/", "/login", "/register", "/dashboard", "/directory", "/materials",
+        "/opportunities", "/announcements", "/forgot-password", "/terms", "/privacy", "/support",
+    ])
+    def test_page_renders(self, client, path):
+        rv = client.get(path)
+        assert rv.status_code == 200
+        assert "Traceback" not in rv.get_data(as_text=True)
+
+    def test_login_page_omits_google_button_when_unconfigured(self, client):
+        rv = client.get("/login")
+        assert "g_id_signin" not in rv.get_data(as_text=True)
+
 
 class TestHealth:
     def test_healthz_ok(self, client):
@@ -589,7 +676,7 @@ class TestHealth:
         assert "Exception" not in body
 
 
-# ── Forgot password ───────────────────────────────────────────────────────────
+# Forgot password
 
 class TestForgotPassword:
     def test_forgot_password_unknown_user(self, client):
@@ -613,7 +700,7 @@ class TestForgotPassword:
         assert rv.status_code == 400
 
 
-# ── Email Verification ────────────────────────────────────────────────────────
+# Email Verification
 
 class TestEmailVerification:
     def _register_unverified(self, client, email: str) -> dict:
@@ -713,3 +800,132 @@ class TestEmailVerification:
         new_token = self._get_token_from_db("resend@test.ss")
         assert new_token is not None
         assert new_token != old_token
+
+
+class TestNotifications:
+    def _make_admin_token(self, client, email="admin-notif@test.ss"):
+        _register(client, email)
+        with engine.connect() as conn:
+            conn.execute(text("UPDATE users SET role='admin' WHERE email=:e"), {"e": email})
+            conn.commit()
+        return _login(client, email)
+
+    def _make_scholarship_and_application(self, client, applicant_email):
+        _register(client, applicant_email)
+        with engine.connect() as conn:
+            uid = conn.execute(
+                text("SELECT id FROM users WHERE email=:e"), {"e": applicant_email}
+            ).fetchone()[0]
+            sid = conn.execute(text(
+                "INSERT INTO scholarships (title,description,deadline,approved) "
+                "VALUES ('Notif Test Scholarship','desc','2099-01-01',1) RETURNING id"
+            )).fetchone()[0]
+            app_id = conn.execute(text(
+                "INSERT INTO applications (user_id,scholarship_id,status) "
+                "VALUES (:u,:s,'submitted') RETURNING id"
+            ), {"u": uid, "s": sid}).fetchone()[0]
+            conn.commit()
+        return app_id
+
+    def test_notifications_requires_auth(self, client):
+        rv = client.get("/api/notifications")
+        assert rv.status_code == 401
+
+    def test_application_status_change_creates_notification(self, client):
+        app_id = self._make_scholarship_and_application(client, "peter@test.ss")
+        admin_token = self._make_admin_token(client)
+        rv = client.post(
+            f"/api/admin/applications/{app_id}/status",
+            json={"status": "shortlisted"},
+            headers=_auth(admin_token),
+        )
+        assert rv.status_code == 200
+
+        applicant_token = _login(client, "peter@test.ss")
+        rv2 = client.get("/api/notifications", headers=_auth(applicant_token))
+        assert rv2.status_code == 200
+        data = rv2.get_json()
+        assert data["count"] >= 1
+        assert any(item["type"] == "application_status" for item in data["items"])
+
+    def test_mark_notification_read(self, client):
+        app_id = self._make_scholarship_and_application(client, "quinn@test.ss")
+        admin_token = self._make_admin_token(client, "admin-notif2@test.ss")
+        client.post(
+            f"/api/admin/applications/{app_id}/status",
+            json={"status": "successful"},
+            headers=_auth(admin_token),
+        )
+        applicant_token = _login(client, "quinn@test.ss")
+        items = client.get("/api/notifications", headers=_auth(applicant_token)).get_json()["items"]
+        notif_id = next(i["id"] for i in items if i["type"] == "application_status")
+        rv = client.post(f"/api/notifications/{notif_id}/read", headers=_auth(applicant_token))
+        assert rv.status_code == 200
+        after = client.get("/api/notifications", headers=_auth(applicant_token)).get_json()
+        assert after["count"] == 0
+
+    def test_mark_notification_read_wrong_owner(self, client):
+        app_id = self._make_scholarship_and_application(client, "riley@test.ss")
+        admin_token = self._make_admin_token(client, "admin-notif3@test.ss")
+        client.post(
+            f"/api/admin/applications/{app_id}/status",
+            json={"status": "successful"},
+            headers=_auth(admin_token),
+        )
+        owner_token = _login(client, "riley@test.ss")
+        items = client.get("/api/notifications", headers=_auth(owner_token)).get_json()["items"]
+        notif_id = next(i["id"] for i in items if i["type"] == "application_status")
+
+        _register(client, "stranger@test.ss")
+        stranger_token = _login(client, "stranger@test.ss")
+        rv = client.post(f"/api/notifications/{notif_id}/read", headers=_auth(stranger_token))
+        assert rv.status_code == 404
+
+    def test_notifications_stream_requires_token(self, client):
+        rv = client.get("/api/notifications/stream")
+        assert rv.status_code == 401
+
+
+class TestWebPush:
+    def test_vapid_public_key_is_public(self, client):
+        rv = client.get("/api/push/vapid-public-key")
+        assert rv.status_code == 200
+        assert "key" in rv.get_json()
+
+    def test_subscribe_requires_auth(self, client):
+        rv = client.post("/api/push/subscribe", json={"endpoint": "https://example.com/x", "keys": {"p256dh": "a", "auth": "b"}})
+        assert rv.status_code == 401
+
+    def test_subscribe_and_unsubscribe(self, client):
+        _register(client, "tom@test.ss")
+        token = _login(client, "tom@test.ss")
+        rv = client.post(
+            "/api/push/subscribe",
+            json={"endpoint": "https://push.example.com/abc", "keys": {"p256dh": "pkey", "auth": "akey"}},
+            headers=_auth(token),
+        )
+        assert rv.status_code == 200
+        rv2 = client.post(
+            "/api/push/unsubscribe",
+            json={"endpoint": "https://push.example.com/abc"},
+            headers=_auth(token),
+        )
+        assert rv2.status_code == 200
+
+    def test_subscribe_missing_fields(self, client):
+        _register(client, "ursula@test.ss")
+        token = _login(client, "ursula@test.ss")
+        rv = client.post("/api/push/subscribe", json={"endpoint": ""}, headers=_auth(token))
+        assert rv.status_code == 400
+
+
+class TestGoogleAuth:
+    def test_credential_required(self, client):
+        rv = client.post("/api/auth/google", json={})
+        assert rv.status_code == 400
+
+    def test_invalid_credential_rejected(self, client):
+        # GOOGLE_CLIENT_ID is unset in the test environment, so verification
+        # short-circuits to "invalid" for any token — this must never 500 or auto-log-in.
+        rv = client.post("/api/auth/google", json={"credential": "not-a-real-jwt"})
+        assert rv.status_code == 401

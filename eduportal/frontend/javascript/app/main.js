@@ -1,27 +1,62 @@
 (function () {
   'use strict';
 
-  const TOKEN_KEY = 'eduportal_token';
-  const USER_KEY  = 'eduportal_user';
+  const TOKEN_KEY   = 'eduportal_token';
+  const REFRESH_KEY = 'eduportal_refresh_token';
+  const USER_KEY    = 'eduportal_user';
 
   function getToken() { return localStorage.getItem(TOKEN_KEY); }
+  function getRefreshToken() { return localStorage.getItem(REFRESH_KEY); }
   function getUser()  { try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; } }
-  function saveSession(token, user) {
+  function saveSession(token, user, refreshToken) {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
   }
   function clearSession() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(REFRESH_KEY);
   }
 
-  // ── Fetch wrapper ─────────────────────────────────────────────────────────
-  async function api(path, opts = {}) {
+  // Swaps the access token for a fresh one using the stored refresh token.
+  // Concurrent callers share one in-flight request so a burst of 401s doesn't
+  // spend the (single-use) refresh token more than once.
+  let refreshInFlight = null;
+  function refreshSession() {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return Promise.resolve(false);
+    if (!refreshInFlight) {
+      refreshInFlight = fetch('/api/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
+        .then(async (res) => {
+          if (!res.ok) return false;
+          const data = await res.json();
+          localStorage.setItem(TOKEN_KEY, data.token);
+          localStorage.setItem(REFRESH_KEY, data.refresh_token);
+          return true;
+        })
+        .catch(() => false)
+        .finally(() => { refreshInFlight = null; });
+    }
+    return refreshInFlight;
+  }
+
+  // Fetch wrapper — retries once with a refreshed access token on a 401
+  async function api(path, opts = {}, _retried = false) {
     const headers = { ...(opts.headers || {}) };
     if (opts.body) headers['Content-Type'] = 'application/json';
     const token = getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res  = await fetch(path, { ...opts, headers });
+    const res = await fetch(path, { ...opts, headers });
+    if (res.status === 401 && !_retried && path !== '/api/refresh' && getRefreshToken()) {
+      const refreshed = await refreshSession();
+      if (refreshed) return api(path, opts, true);
+      clearSession();
+    }
     const ct   = res.headers.get('content-type') || '';
     const body = ct.includes('application/json') ? await res.json() : await res.text();
     if (!res.ok) throw new Error((body && body.error) || `HTTP ${res.status}`);
@@ -44,7 +79,17 @@
     el.classList.add(isError ? 'is-error' : 'is-success');
   }
 
-  // ── PDF checklist download (no external lib) ────────────────────────────────────────────
+  // VAPID public keys are base64url — the Push API wants a raw Uint8Array
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    const output = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) output[i] = rawData.charCodeAt(i);
+    return output;
+  }
+
+  // PDF checklist download (no external lib)
   function downloadChecklistPDF(school, items) {
     // Build an HTML document and print it as PDF via the browser print dialog
     const rows = items.map(r => {
@@ -107,7 +152,7 @@
     return ['mp4', 'webm', 'ogg', 'm4v'].includes(ext) ? 'video' : 'file';
   }
 
-  // ── Pagination helper ─────────────────────────────────────────────────────
+  // Pagination helper
   function renderPagination(container, total, page, perPage, onPage) {
     const pages = Math.ceil(total / perPage);
     if (pages <= 1) { container.innerHTML = ''; return; }
@@ -123,7 +168,19 @@
     });
   }
 
-  // ── Login ─────────────────────────────────────────────────────────────────
+  // Google Sign-In — called by Google's Identity Services button once the user completes the flow
+  window.handleGoogleCredential = async function (response) {
+    const msg = document.getElementById('login-message') || document.getElementById('register-message');
+    try {
+      const data = await api('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential: response.credential }) });
+      saveSession(data.token, data.user, data.refresh_token);
+      window.location.href = '/dashboard';
+    } catch (err) {
+      setMsg(msg, err.message || 'Google sign-in failed.', true);
+    }
+  };
+
+  // Login
   function initLogin() {
     const form = document.getElementById('login-form');
     const msg  = document.getElementById('login-message');
@@ -149,7 +206,7 @@
       const fd = Object.fromEntries(new FormData(form));
       try {
         const data = await api('/api/login', { method: 'POST', body: JSON.stringify({ identifier: fd.identifier, password: fd.password }) });
-        saveSession(data.token, data.user);
+        saveSession(data.token, data.user, data.refresh_token);
         window.location.href = '/dashboard';
       } catch (err) {
         setMsg(msg, err.message, true);
@@ -158,7 +215,7 @@
     });
   }
 
-  // ── Register ──────────────────────────────────────────────────────────────
+  // Register
   function initRegister() {
     const form = document.getElementById('register-form');
     const msg  = document.getElementById('register-message');
@@ -172,7 +229,7 @@
       const fd = Object.fromEntries(new FormData(form));
       try {
         const data = await api('/api/register', { method: 'POST', body: JSON.stringify(fd) });
-        saveSession(data.token, data.user);
+        saveSession(data.token, data.user, data.refresh_token);
         window.location.href = '/dashboard';
       } catch (err) {
         setMsg(msg, err.message, true);
@@ -181,7 +238,7 @@
     });
   }
 
-  // ── Dashboard ─────────────────────────────────────────────────────────────
+  // Dashboard
   async function initDashboard() {
     const isAuthed = !!getToken();
     const user = getUser();
@@ -190,6 +247,8 @@
     if (greetEl && user) greetEl.textContent = `Welcome back, ${user.name.split(' ')[0]}.`;
 
     document.getElementById('logout-btn')?.addEventListener('click', () => {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) fetch('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refreshToken }) }).catch(() => {});
       clearSession(); window.location.href = '/';
     });
 
@@ -289,7 +348,7 @@
     }
   }
 
-  // ── Directory ─────────────────────────────────────────────────────────────
+  // Directory
   async function initDirectory() {
     const form    = document.getElementById('school-search-form');
     const results = document.getElementById('directory-results');
@@ -407,7 +466,7 @@
     load(1);
   }
 
-  // ── School profile ────────────────────────────────────────────────────────
+  // School profile
   async function initSchoolProfile() {
     const shell = document.getElementById('school-shell');
     if (!shell) return;
@@ -484,7 +543,7 @@
         } catch (err) { btn.textContent = err.message; btn.disabled = false; }
       });
 
-      // ── School admin edit panel ──────────────────────────────────────────
+      // School admin edit panel
       try {
         const { user: me } = await api('/api/me');
         if (me.role === 'school_admin' && me.school_id === Number(id) || me.role === 'admin') {
@@ -585,7 +644,7 @@
 
     shell.appendChild(panel);
 
-    // ── School info form ────────────────────────────────────────────────────
+    // School info form
     const editForm = panel.querySelector('#edit-school-form');
     const editMsg  = panel.querySelector('#edit-school-msg');
     editForm.addEventListener('submit', async (e) => {
@@ -603,7 +662,7 @@
       } finally { btn.disabled = false; }
     });
 
-    // ── Requirements editor ─────────────────────────────────────────────────
+    // Requirements editor
     const reqEditor = panel.querySelector('#req-editor');
     const reqsMsg   = panel.querySelector('#edit-reqs-msg');
     let reqs = reqItems.map(r => ({ item_label: r.item_label, is_required: r.is_required, notes: r.notes || '' }));
@@ -650,7 +709,7 @@
     });
   }
 
-  // ── Materials ─────────────────────────────────────────────────────────────
+  // Materials
   async function initMaterials() {
     const form    = document.getElementById('materials-search-form');
     const results = document.getElementById('materials-results');
@@ -823,7 +882,7 @@
   }
 
 
-  // ── Opportunities (Scholarships) ──────────────────────────────────────────
+  // Opportunities (Scholarships)
   async function initOpportunities() {
     const form    = document.getElementById('scholarships-search-form');
     const results = document.getElementById('opportunities-results');
@@ -966,7 +1025,7 @@
     load();
   }
 
-  // ── Announcements ─────────────────────────────────────────────────────────
+  // Announcements
   async function initAnnouncements() {
     const form    = document.getElementById('announcements-filter-form');
     const results = document.getElementById('announcements-results');
@@ -1015,12 +1074,13 @@
                   <p class="ann-list-preview">${esc(a.body)}</p>
                   <div class="ann-list-footer">
                     <span class="deadline-badge">Expires: ${esc(a.expires_at || 'N/A')}</span>
-                    ${a.attachment_path ? `<a href="${esc(a.attachment_path)}" target="_blank" rel="noopener" class="card-link">📎 Download</a>` : a.attachment_url ? `<a href="${esc(a.attachment_url)}" target="_blank" rel="noopener" class="card-link">View attachment</a>` : ''}
+                    ${a.attachment_path ? `<a href="${esc(a.attachment_path)}" target="_blank" rel="noopener" class="card-link"><i data-lucide="paperclip" width="14" height="14"></i> Download</a>` : a.attachment_url ? `<a href="${esc(a.attachment_url)}" target="_blank" rel="noopener" class="card-link"><i data-lucide="external-link" width="14" height="14"></i> View attachment</a>` : ''}
                     <span class="u-school-copy-inline">${esc(a.created_at ? a.created_at.slice(0,10) : '')}</span>
                   </div>
                 </div>
               </article>`).join('')
           : '<p class="empty-text">No announcements found.</p>';
+        if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
       } catch (err) {
         results.innerHTML = `<p class="u-copy-danger">${esc(err.message)}</p>`;
       }
@@ -1031,7 +1091,7 @@
   }
 
 
-  // ── My Applications ───────────────────────────────────────────────────────
+  // My Applications
   async function initMyApplications() {
     if (!getToken()) { window.location.href = '/'; return; }
 
@@ -1122,7 +1182,7 @@
     load();
   }
 
-  // ── Profile ───────────────────────────────────────────────────────────────
+  // Profile
   async function initProfile() {
     if (!getToken()) { window.location.href = '/'; return; }
 
@@ -1243,7 +1303,7 @@
     });
   }
 
-  // ── Settings ──────────────────────────────────────────────────────────────
+  // Settings
   async function initSettings() {
     if (!getToken()) { window.location.href = '/'; return; }
 
@@ -1296,7 +1356,8 @@
         btn.disabled = false; return;
       }
       try {
-        await api('/api/change-password', { method: 'POST', body: JSON.stringify(fd) });
+        const data = await api('/api/change-password', { method: 'POST', body: JSON.stringify(fd) });
+        if (data.token && data.refresh_token) saveSession(data.token, getUser(), data.refresh_token);
         setMsg(pwMsg, 'Password changed successfully.');
         pwForm.reset();
       } catch (err) {
@@ -1317,9 +1378,54 @@
         deactivateBtn.disabled = false;
       }
     });
+
+    // Push notifications (this device)
+    const pushBtn = document.getElementById('push-toggle-btn');
+    const pushMsg = document.getElementById('push-message');
+
+    async function refreshPushButtonState() {
+      if (!pushBtn) return;
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        pushBtn.disabled = true;
+        setMsg(pushMsg, 'Push notifications are not supported in this browser.', true);
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready.catch(() => null);
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      pushBtn.textContent = sub ? 'Disable push notifications' : 'Enable push notifications';
+    }
+
+    pushBtn?.addEventListener('click', async () => {
+      pushBtn.disabled = true;
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) {
+          await api('/api/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint: existing.endpoint }) });
+          await existing.unsubscribe();
+          setMsg(pushMsg, 'Push notifications disabled on this device.');
+        } else {
+          const { key, enabled } = await api('/api/push/vapid-public-key');
+          if (!enabled) { setMsg(pushMsg, 'Push notifications are not configured on this server yet.', true); return; }
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(key),
+          });
+          await api('/api/push/subscribe', { method: 'POST', body: JSON.stringify(sub.toJSON()) });
+          setMsg(pushMsg, 'Push notifications enabled on this device.');
+        }
+      } catch (err) {
+        setMsg(pushMsg, err.message || 'Could not update push notification settings.', true);
+      } finally {
+        pushBtn.disabled = false;
+        refreshPushButtonState();
+      }
+    });
+
+    if (pushBtn) refreshPushButtonState();
   }
 
-  // ── Admin ─────────────────────────────────────────────────────────────────
+  // Admin
   async function initAdmin() {
     if (!getToken()) { window.location.href = '/'; return; }
     const user = getUser();
@@ -1526,7 +1632,7 @@
 
     document.getElementById('user-filter-form')?.addEventListener('submit', (e) => { e.preventDefault(); loadUsers(); });
 
-    // ── Applications tab ────────────────────────────────────────────────────
+    // Applications tab
     async function loadAdminApps() {
       const listEl = document.getElementById('admin-applications-list');
       if (!listEl) return;
@@ -1576,7 +1682,7 @@
     document.getElementById('admin-apps-filter-form')?.addEventListener('submit', (e) => { e.preventDefault(); loadAdminApps(); });
     document.querySelector('[data-tab="tab-applications"]')?.addEventListener('click', () => loadAdminApps());
 
-    // ── Schools tab ─────────────────────────────────────────────────────────
+    // Schools tab
     async function loadAdminSchools() {
       const listEl  = document.getElementById('admin-schools-list');
       const countEl = document.getElementById('admin-schools-count');
@@ -1679,7 +1785,7 @@
   }
 
 
-  // ── Bookmarks ──────────────────────────────────────────────────────────────────
+  // Bookmarks
   async function initBookmarks() {
     if (!getToken()) { window.location.href = '/'; return; }
 
@@ -1830,7 +1936,7 @@
     renderScholarships();
   }
 
-  // ── Forgot / Reset Password ───────────────────────────────────────────────
+  // Forgot / Reset Password
   function initForgotPassword() {
     const forgotForm = document.getElementById('forgot-form');
     const resetForm  = document.getElementById('reset-form');
@@ -1886,7 +1992,7 @@
     });
   }
 
-  // ── School Dashboard ──────────────────────────────────────────────────────
+  // School Dashboard
   async function initSchoolDashboard() {
     if (!getToken()) { window.location.href = '/'; return; }
     const user = getUser();
@@ -2082,7 +2188,7 @@
     });
   }
 
-  // ── NGO Dashboard ─────────────────────────────────────────────────────────
+  // NGO Dashboard
   async function initNgoDashboard() {
     if (!getToken()) { window.location.href = '/'; return; }
     const user = getUser();
@@ -2200,7 +2306,7 @@
     });
   }
 
-  // ── School Dashboard ─────────────────────────────────────────────────────
+  // School Dashboard
   async function initSchoolDashboard() {
     if (!getToken()) { window.location.href = '/'; return; }
     const user = getUser();
@@ -2374,7 +2480,7 @@
     loadRecentMaterials();
   }
 
-  // ── NGO Dashboard ─────────────────────────────────────────────────────────
+  // NGO Dashboard
   async function initNGODashboard() {
     if (!getToken()) { window.location.href = '/'; return; }
     const user = getUser();
@@ -2472,7 +2578,7 @@
     loadMyScholarships();
   }
 
-  // ── Accept Invite ─────────────────────────────────────────────────────────
+  // Accept Invite
   async function initAcceptInvite() {
     const token = new URLSearchParams(location.search).get('token') || '';
     const loadingEl  = document.getElementById('invite-loading');
@@ -2523,7 +2629,7 @@
           method: 'POST',
           body: JSON.stringify({ token: fd.token, name: fd.name, password: fd.password }),
         });
-        saveSession(data.token, data.user);
+        saveSession(data.token, data.user, data.refresh_token);
         window.location.href = data.user.role === 'school_admin' ? '/school-dashboard' : '/ngo-dashboard';
       } catch (err) {
         setMsg(msg, err.message, true);
@@ -2532,7 +2638,7 @@
     });
   }
 
-  // ── Live sidebar avatar refresh (called after upload without reload) ──────
+  // Live sidebar avatar refresh (called after upload without reload)
   function _refreshSidebarAvatar(src) {
     const imgTag = `<img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">`;
     function apply() {
@@ -2545,7 +2651,7 @@
     setTimeout(apply, 300);
   }
 
-  // ── Boot ──────────────────────────────────────────────────────────────────
+  // Boot
   function bootApp() {
     const page = document.body.dataset.page || '';
 

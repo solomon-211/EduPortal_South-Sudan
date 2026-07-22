@@ -39,7 +39,7 @@
 .sidebar-account,
 .nav-group { flex-shrink: 0; }
 
-/* ── Brand row ── */
+/* Brand row */
 .sidebar-brand {
   display: flex;
   flex-direction: column;
@@ -81,7 +81,7 @@
 }
 .sidebar-brand span { display: none; }
 
-/* ── User card ── */
+/* User card */
 .sidebar-account {
   display: flex;
   align-items: center;

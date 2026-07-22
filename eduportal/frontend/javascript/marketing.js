@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  // ── Mobile nav toggle ─────────────────────────────────────────────────────
+  // Mobile nav toggle
   const hamburger = document.getElementById('mkt-hamburger');
   const navLinks  = document.getElementById('mkt-nav-links');
   const navActions = document.getElementById('mkt-nav-actions');
@@ -24,7 +24,7 @@
     });
   });
 
-  // ── Active nav link ───────────────────────────────────────────────────────
+  // Active nav link
   const path = window.location.pathname;
   document.querySelectorAll('.mkt-nav__links a').forEach(a => {
     const href = a.getAttribute('href');
@@ -33,7 +33,7 @@
     }
   });
 
-  // ── Smooth scroll for anchor links ───────────────────────────────────────
+  // Smooth scroll for anchor links
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', e => {
       const target = document.querySelector(a.getAttribute('href'));
@@ -41,7 +41,7 @@
     });
   });
 
-  // ── Contact form ──────────────────────────────────────────────────────────
+  // Contact form
   const contactForm = document.getElementById('mkt-contact-form');
   const contactMsg  = document.getElementById('mkt-contact-msg');
   if (contactForm) {
@@ -72,7 +72,7 @@
     });
   }
 
-  // ── Partner form ──────────────────────────────────────────────────────────
+  // Partner form
   const partnerForm = document.getElementById('mkt-partner-form');
   const partnerMsg  = document.getElementById('mkt-partner-msg');
   if (partnerForm) {
@@ -100,7 +100,7 @@
     });
   }
 
-  // ── Live stats from API ───────────────────────────────────────────────────
+  // Live stats from API
   async function loadStats() {
     try {
       const res = await fetch('/api/stats');

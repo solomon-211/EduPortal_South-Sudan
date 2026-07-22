@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EduPortal South Sudan | Sign In</title>
   <link rel="stylesheet" href="/static/html/login.css">
+  {% if google_client_id %}<script src="https://accounts.google.com/gsi/client" async defer></script>{% endif %}
   <script defer src="/static/app.js"></script>
 </head>
 <body class="auth-page">
 <main class="login-container">
 
-  <!-- â”€â”€ Left panel â”€â”€ -->
+  <!-- Left panel -->
   <section class="left-panel" aria-hidden="true">
     <div class="left-panel-shapes">
       <div class="shape shape-1"></div>
@@ -93,7 +94,7 @@
     </div>
   </section>
 
-  <!-- â”€â”€ Right panel â”€â”€ -->
+  <!-- Right panel -->
   <section class="right-panel">
     <div class="auth-card">
 
@@ -114,6 +115,15 @@
         </div>
         <a class="create-link" href="/register">New account &rarr;</a>
       </div>
+
+      {% if google_client_id %}
+      <div id="g_id_onload"
+           data-client_id="{{ google_client_id }}"
+           data-callback="handleGoogleCredential"
+           data-auto_prompt="false"></div>
+      <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-width="360"></div>
+      <div class="auth-divider"><span>or</span></div>
+      {% endif %}
 
       <form id="login-form" class="auth-form" autocomplete="on" novalidate>
 

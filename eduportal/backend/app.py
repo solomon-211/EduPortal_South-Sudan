@@ -5,23 +5,31 @@ import os
 import mimetypes
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from queue import Empty
 
 import bcrypt
 import jwt
-from flask import Flask, jsonify, render_template, request, redirect, url_for, send_file as flask_send_file, send_from_directory
+from flask import Flask, jsonify, render_template, request, redirect, url_for, Response, send_file as flask_send_file, send_from_directory
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.utils import secure_filename
 
 log = logging.getLogger(__name__)
 
-from auth.jwt_helpers import api_err, get_current_user, log_audit, make_token, require_auth, require_role
-from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES, ALLOWED_EXTENSIONS, ALLOWED_MATERIAL_EXTS, UPLOAD_FOLDER, MATERIALS_FOLDER, ANNOUNCEMENTS_FOLDER
+from auth.google_oauth import verify_google_token
+from auth.jwt_helpers import (
+    api_err, get_current_user, log_audit, make_refresh_token, make_token,
+    require_auth, require_role, revoke_all_refresh_tokens, revoke_refresh_token,
+    verify_refresh_token,
+)
+from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES, ALLOWED_EXTENSIONS, ALLOWED_MATERIAL_EXTS, UPLOAD_FOLDER, MATERIALS_FOLDER, ANNOUNCEMENTS_FOLDER, VAPID_PUBLIC_KEY, GOOGLE_CLIENT_ID
 from db.connection import get_db, close_conn
 from db.queries import count, execute, query_all, query_one
 from db.schema import init_db
+from notifications import push
 from notifications.email import send_email, send_verification_email
 from notifications.sms import send_sms
+from notifications.store import create_notification, subscribe, unsubscribe
 from storage import save_file, public_url as storage_url, using_s3
 
 JWT_SECRET = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-change-in-prod")
@@ -92,6 +100,11 @@ def add_security_headers(response):
     return response
 
 
+@app.route("/sw.js")
+def service_worker():
+    # Served from the root path (not /static/) so its default scope covers the whole site
+    return send_from_directory(str(JS_DIR), "sw.js", mimetype="text/javascript")
+
 @app.route("/static/<path:filename>")
 def static_files(filename: str):
     # CSS compatibility
@@ -158,7 +171,7 @@ def ensure_db():
         _DB_READY = True
 
 
-# ── Page routes ───────────────────────────────────────────────────────────────
+# Page routes
 
 @app.route("/")
 def home():
@@ -182,11 +195,11 @@ def partner_page():
 
 @app.route("/login")
 def login_page():
-    return render_template("login.html")
+    return render_template("login.html", google_client_id=GOOGLE_CLIENT_ID)
 
 @app.route("/register")
 def register_page():
-    return render_template("register.html")
+    return render_template("register.html", google_client_id=GOOGLE_CLIENT_ID)
 
 @app.route("/terms")
 def terms_page():
@@ -260,7 +273,7 @@ def organizations_page():
 def school_profile(school_id: int):
     return render_template("school.html", school_id=school_id)
 
-# ── Auth API ──────────────────────────────────────────────────────────────────
+# Auth API
 
 @app.route("/api/login", methods=["POST"])
 @limiter.limit("10 per minute")
@@ -291,7 +304,11 @@ def api_login():
         valid = False
     if not valid:
         return api_err("Invalid credentials", 401)
-    return jsonify({"token": make_token(user), "user": {"id": user["id"], "name": user["name"], "role": user["role"], "state": user["state"]}})
+    return jsonify({
+        "token": make_token(user),
+        "refresh_token": make_refresh_token(user["id"]),
+        "user": {"id": user["id"], "name": user["name"], "role": user["role"], "state": user["state"]},
+    })
 
 @app.route("/api/register", methods=["POST"])
 @limiter.limit("5 per minute")
@@ -344,7 +361,11 @@ def api_register():
             response["dev_verify_url"] = verify_url
             response["note"] = "Configure SMTP_HOST in .env to send verification emails in production."
         return jsonify(response), 201
-    return jsonify({"token": make_token(user), "user": {"id": user["id"], "name": user["name"], "role": user["role"]}}), 201
+    return jsonify({
+        "token": make_token(user),
+        "refresh_token": make_refresh_token(user["id"]),
+        "user": {"id": user["id"], "name": user["name"], "role": user["role"]},
+    }), 201
 
 @app.route("/api/verify-email")
 def api_verify_email():
@@ -373,7 +394,50 @@ def api_verify_email():
     user = query_one("SELECT * FROM users WHERE id=?", (row["user_id"],))
     if not user:
         return api_err("Account not found", 404)
-    return jsonify({"message": "Email verified successfully. You can now sign in.", "token": make_token(user)})
+    return jsonify({
+        "message": "Email verified successfully. You can now sign in.",
+        "token": make_token(user),
+        "refresh_token": make_refresh_token(user["id"]),
+    })
+
+@app.route("/api/auth/google", methods=["POST"])
+@limiter.limit("15 per minute")
+def api_auth_google():
+    import secrets
+    data = request.get_json(silent=True) or {}
+    credential = (data.get("credential") or "").strip()
+    if not credential:
+        return api_err("credential is required")
+    claims = verify_google_token(credential)
+    if not claims:
+        return api_err("Invalid or unverified Google credential", 401)
+    email = (claims.get("email") or "").strip().lower()
+    if not email:
+        return api_err("Google account has no email", 400)
+
+    user = query_one("SELECT * FROM users WHERE lower(email)=?", (email,))
+    if user:
+        if int(user.get("verified", 0)) < 0:
+            return api_err("This account is deactivated", 403)
+        if int(user.get("verified", 0)) == 0:
+            # Google already proved ownership of this email — no need to also click a verify link
+            execute("UPDATE users SET verified=1 WHERE id=?", (user["id"],))
+            user = query_one("SELECT * FROM users WHERE id=?", (user["id"],))
+    else:
+        name = (claims.get("name") or email.split("@")[0]).strip()[:120]
+        avatar = (claims.get("picture") or "").strip() or None
+        placeholder_hash = bcrypt.hashpw(secrets.token_urlsafe(32).encode(), bcrypt.gensalt()).decode()
+        uid = execute(
+            "INSERT INTO users (name,email,password_hash,role,verified,avatar) VALUES (?,?,?,?,1,?)",
+            (name, email, placeholder_hash, "student", avatar),
+        )
+        user = query_one("SELECT * FROM users WHERE id=?", (uid,))
+
+    return jsonify({
+        "token": make_token(user),
+        "refresh_token": make_refresh_token(user["id"]),
+        "user": {"id": user["id"], "name": user["name"], "role": user["role"]},
+    })
 
 
 @app.route("/api/resend-verification", methods=["POST"])
@@ -400,6 +464,29 @@ def api_resend_verification():
         verify_url = f"{base_url}/api/verify-email?token={token}"
         send_verification_email(email, user["name"], verify_url)
     return jsonify({"message": "If that email is registered and unverified, a new link has been sent."})
+
+@app.route("/api/refresh", methods=["POST"])
+@limiter.limit("30 per minute")
+def api_refresh():
+    data = request.get_json(silent=True) or {}
+    raw_token = (data.get("refresh_token") or "").strip()
+    if not raw_token:
+        return api_err("refresh_token is required")
+    user = verify_refresh_token(raw_token)
+    if not user:
+        return api_err("Invalid or expired refresh token", 401)
+    return jsonify({
+        "token": make_token(user),
+        "refresh_token": make_refresh_token(user["id"]),
+    })
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    data = request.get_json(silent=True) or {}
+    raw_token = (data.get("refresh_token") or "").strip()
+    if raw_token:
+        revoke_refresh_token(raw_token)
+    return jsonify({"message": "Logged out"})
 
 
 @app.route("/api/me")
@@ -480,17 +567,24 @@ def api_change_password():
         return api_err("Current password is incorrect", 401)
     new_hash = bcrypt.hashpw(new_pass.encode(), bcrypt.gensalt()).decode()
     execute("UPDATE users SET password_hash=? WHERE id=?", (new_hash, u["id"]))
-    return jsonify({"message": "Password changed"})
+    # Password changed — sign out every other session, then re-issue for this one
+    revoke_all_refresh_tokens(u["id"])
+    return jsonify({
+        "message": "Password changed",
+        "token": make_token(u),
+        "refresh_token": make_refresh_token(u["id"]),
+    })
 
 @app.route("/api/deactivate-account", methods=["POST"])
 @require_auth
 def api_deactivate_account():
     u = request.current_user  # type: ignore[attr-defined]
     execute("UPDATE users SET verified=-1 WHERE id=?", (u["id"],))
+    revoke_all_refresh_tokens(u["id"])
     return jsonify({"message": "Account deactivated"})
 
 
-# ── Stats ─────────────────────────────────────────────────────────────────────
+# Stats
 
 @app.route("/api/stats")
 def api_stats():
@@ -503,7 +597,7 @@ def api_stats():
         "states": 10,
     })
 
-# ── Schools ───────────────────────────────────────────────────────────────────
+# Schools
 
 @app.route("/api/schools")
 def api_schools():
@@ -581,7 +675,7 @@ def api_school_requirements(school_id: int):
     items = query_all("SELECT id,item_label,is_required,notes FROM admission_requirements WHERE school_id=? ORDER BY id", (school_id,))
     return jsonify({"items": items})
 
-# ── Materials ─────────────────────────────────────────────────────────────────
+# Materials
 
 @app.route("/api/materials")
 def api_materials():
@@ -716,7 +810,7 @@ def api_material_download(material_id: int):
         mimetype=_material_mimetype(disk_path.name),
     )
 
-# ── Organizations ────────────────────────────────────────────────────────────
+# Organizations
 
 VALID_ORG_TYPES = {
     "Ministry of General Education",
@@ -877,7 +971,7 @@ def api_my_org_profile_update():
     execute(f"UPDATE organizations SET {', '.join(sets)} WHERE id=?", tuple(params))  # noqa: S608
     return jsonify({"message": "Organisation profile updated"})
 
-# ── Announcements ─────────────────────────────────────────────────────────────
+# Announcements
 
 @app.route("/api/announcements")
 def api_announcements():
@@ -894,7 +988,7 @@ def api_announcements():
     sql = (
         "SELECT id,title,body,source_type,org_type,org_name,org_id,"
         "audience,priority,state,attachment_url,attachment_path,expires_at,created_at "
-        "FROM announcements WHERE approved=?"
+        "FROM announcements WHERE approved=? AND (expires_at IS NULL OR expires_at='' OR date(expires_at) >= date('now'))"
     )
     params: list = [approved_val]
     if source:    sql += " AND source_type=?";                params.append(source)
@@ -1015,7 +1109,7 @@ def api_announcement_delete(ann_id: int):
     return jsonify({"message": "Announcement deleted"})
 
 
-# ── Scholarships ──────────────────────────────────────────────────────────────
+# Scholarships
 
 @app.route("/api/scholarships")
 def api_scholarships():
@@ -1083,7 +1177,7 @@ def api_scholarships_post():
     )
     return jsonify({"message": "Scholarship submitted for review", "id": sid}), 201
 
-# ── Applications ──────────────────────────────────────────────────────────────
+# Applications
 
 @app.route("/api/applications")
 @require_auth
@@ -1145,7 +1239,6 @@ def api_admin_update_application(app_id: int):
         return api_err(f"status must be one of: {', '.join(valid_statuses)}")
     execute("UPDATE applications SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (status, app_id))
     log_audit(u["id"], f"set_status_{status}", "application", app_id)
-    # C — send email notification to applicant
     app_row = query_one(
         """SELECT a.*, u.email AS applicant_email, u.name AS applicant_name,
                   u.notify_email, s.title AS scholarship_title
@@ -1155,16 +1248,23 @@ def api_admin_update_application(app_id: int):
            WHERE a.id=?""",
         (app_id,),
     )
-    if app_row and app_row.get("applicant_email") and app_row.get("notify_email"):
+    if app_row:
         label = status.replace("_", " ").title()
-        send_email(
-            app_row["applicant_email"],
-            f"EduPortal — Application Update: {app_row['scholarship_title']}",
-            f"Dear {app_row['applicant_name']},\n\nYour application for \"{app_row['scholarship_title']}\" has been updated to: {label}.\n\nLog in to EduPortal South Sudan to view details.\n\nEduPortal South Sudan",
+        create_notification(
+            app_row["user_id"], "application_status",
+            f"Application update: {app_row['scholarship_title']}",
+            f"Status changed to {label}",
+            ref_type="application", ref_id=app_id,
         )
+        if app_row.get("applicant_email") and app_row.get("notify_email"):
+            send_email(
+                app_row["applicant_email"],
+                f"EduPortal — Application Update: {app_row['scholarship_title']}",
+                f"Dear {app_row['applicant_name']},\n\nYour application for \"{app_row['scholarship_title']}\" has been updated to: {label}.\n\nLog in to EduPortal South Sudan to view details.\n\nEduPortal South Sudan",
+            )
     return jsonify({"message": f"Application status updated to {status}"})
 
-# ── Bookmarks ─────────────────────────────────────────────────────────────────
+# Bookmarks
 
 @app.route("/api/bookmarks/detailed")
 @require_auth
@@ -1251,7 +1351,7 @@ def api_bookmark_delete(bookmark_id: int):
     return jsonify({"message": "Removed"})
 
 
-# ── Admin ─────────────────────────────────────────────────────────────────────
+# Admin
 
 @app.route("/api/admin/queue")
 @require_role("admin")
@@ -1398,7 +1498,7 @@ def api_admin_analytics():
         "total_applications": count("SELECT COUNT(*) AS count FROM applications"),
     })
 
-# ── Notification test routes ──────────────────────────────────────────────────
+# Notification test routes
 
 @app.route("/api/notifications/test-email", methods=["POST"])
 @require_role("admin")
@@ -1424,9 +1524,9 @@ def api_test_sms():
     return jsonify({"sent": sent, "message": "SMS sent" if sent else "Africa's Talking not configured — set AT_API_KEY in .env"})
 
 
-# ── Health ────────────────────────────────────────────────────────────────────
+# Health
 
-# ── Forgot / Reset Password ──────────────────────────────────────────────────
+# Forgot / Reset Password
 
 @app.route("/forgot-password")
 def forgot_password_page():
@@ -1507,43 +1607,139 @@ def api_reset_password():
     execute("DELETE FROM password_resets WHERE user_id=?", (user_id_int,))
     return jsonify({"message": "Password reset successfully. You can now sign in."})
 
-# ── Notifications (bell) ──────────────────────────────────────────────────────
+# Notifications (bell)
 
 @app.route("/api/notifications")
 @require_auth
 def api_notifications():
     u = request.current_user  # type: ignore[attr-defined]
     now_utc = datetime.now(timezone.utc)
-    tomorrow = (now_utc + timedelta(days=1)).date().isoformat()
     next_week = (now_utc + timedelta(days=7)).date().isoformat()
     recent_cutoff = (now_utc - timedelta(days=7)).isoformat()
-    # Scholarship deadlines within 7 days
-    rows = query_all(
-        """SELECT s.id, s.title, s.deadline,
-                  CASE WHEN CAST(s.deadline AS DATE) = CAST(? AS DATE) THEN 1
-                       WHEN CAST(s.deadline AS DATE) <= CAST(? AS DATE) THEN 7
-                       ELSE 0 END AS days_left
+
+    persisted = query_all(
+        "SELECT id,type,title,body,read,created_at FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 30",
+        (u["id"],),
+    )
+    deadlines = query_all(
+        """SELECT s.id, s.title, s.deadline
            FROM scholarships s
            JOIN applications a ON a.scholarship_id=s.id
            WHERE a.user_id=? AND s.approved=1
              AND CAST(s.deadline AS DATE) >= CURRENT_DATE
              AND CAST(s.deadline AS DATE) <= CAST(? AS DATE)
            ORDER BY s.deadline ASC""",
-        (tomorrow, next_week, u["id"], next_week),
+        (u["id"], next_week),
     )
-    # Unread announcements (last 7 days)
     ann = query_all(
         "SELECT id,title,created_at FROM announcements WHERE approved=1 AND created_at >= ? ORDER BY created_at DESC LIMIT 5",
         (recent_cutoff,),
     )
-    notifications = []
-    for r in rows:
-        notifications.append({"type": "deadline", "title": f"Deadline soon: {r['title']}", "body": f"Closes {r['deadline']}", "id": r["id"]})
-    for a in ann:
-        notifications.append({"type": "announcement", "title": a["title"], "body": str(a["created_at"])[:10], "id": a["id"]})
-    return jsonify({"items": notifications, "count": len(notifications)})
 
-# ── Admin: onboard school (create + send invite email) ───────────────────────
+    items = [
+        {"id": n["id"], "type": n["type"], "title": n["title"], "body": n["body"],
+         "read": bool(n["read"]), "persisted": True}
+        for n in persisted
+    ]
+    for r in deadlines:
+        items.append({"type": "deadline", "title": f"Deadline soon: {r['title']}", "body": f"Closes {r['deadline']}", "id": r["id"], "read": True, "persisted": False})
+    for a in ann:
+        items.append({"type": "announcement", "title": a["title"], "body": str(a["created_at"])[:10], "id": a["id"], "read": True, "persisted": False})
+
+    unread = sum(1 for n in persisted if not n["read"])
+    return jsonify({"items": items, "count": unread})
+
+@app.route("/api/notifications/<int:notif_id>/read", methods=["POST"])
+@require_auth
+def api_notification_mark_read(notif_id: int):
+    u = request.current_user  # type: ignore[attr-defined]
+    row = query_one("SELECT id FROM notifications WHERE id=? AND user_id=?", (notif_id, u["id"]))
+    if not row:
+        return api_err("Notification not found", 404)
+    execute("UPDATE notifications SET read=1 WHERE id=?", (notif_id,))
+    return jsonify({"message": "Marked as read"})
+
+@app.route("/api/notifications/read-all", methods=["POST"])
+@require_auth
+def api_notifications_mark_all_read():
+    u = request.current_user  # type: ignore[attr-defined]
+    execute("UPDATE notifications SET read=1 WHERE user_id=? AND read=0", (u["id"],))
+    return jsonify({"message": "All notifications marked as read"})
+
+@app.route("/api/notifications/stream")
+def api_notifications_stream():
+    """Server-sent events: push new notifications to the browser as they're created."""
+    token = (request.args.get("token") or "").strip()
+    user = None
+    if token:
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            user = query_one("SELECT * FROM users WHERE id=?", (payload["sub"],))
+        except jwt.PyJWTError:
+            user = None
+    if not user:
+        return api_err("Authentication required", 401)
+
+    user_id = user["id"]
+
+    def event_stream():
+        import json
+        q = subscribe(user_id)
+        try:
+            yield "retry: 5000\n\n"
+            while True:
+                try:
+                    payload = q.get(timeout=25)
+                    yield f"data: {json.dumps(payload)}\n\n"
+                except Empty:
+                    yield ": keep-alive\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            unsubscribe(user_id, q)
+
+    return Response(event_stream(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
+
+# Web Push
+
+@app.route("/api/push/vapid-public-key")
+def api_push_vapid_public_key():
+    return jsonify({"key": VAPID_PUBLIC_KEY, "enabled": push.is_configured()})
+
+@app.route("/api/push/subscribe", methods=["POST"])
+@require_auth
+def api_push_subscribe():
+    u = request.current_user  # type: ignore[attr-defined]
+    data = request.get_json(silent=True) or {}
+    endpoint = (data.get("endpoint") or "").strip()
+    keys = data.get("keys") or {}
+    p256dh = (keys.get("p256dh") or "").strip()
+    auth_key = (keys.get("auth") or "").strip()
+    if not endpoint or not p256dh or not auth_key:
+        return api_err("endpoint and keys.p256dh/keys.auth are required")
+    execute(
+        """INSERT INTO push_subscriptions (user_id,endpoint,p256dh,auth) VALUES (?,?,?,?)
+           ON CONFLICT (endpoint) DO UPDATE
+           SET user_id=EXCLUDED.user_id, p256dh=EXCLUDED.p256dh, auth=EXCLUDED.auth""",
+        (u["id"], endpoint, p256dh, auth_key),
+    )
+    return jsonify({"message": "Subscribed to push notifications"})
+
+@app.route("/api/push/unsubscribe", methods=["POST"])
+@require_auth
+def api_push_unsubscribe():
+    u = request.current_user  # type: ignore[attr-defined]
+    data = request.get_json(silent=True) or {}
+    endpoint = (data.get("endpoint") or "").strip()
+    if not endpoint:
+        return api_err("endpoint is required")
+    execute("DELETE FROM push_subscriptions WHERE endpoint=? AND user_id=?", (endpoint, u["id"]))
+    return jsonify({"message": "Unsubscribed"})
+
+# Admin: onboard school (create + send invite email)
 
 @app.route("/api/admin/onboard-school", methods=["POST"])
 @require_role("admin")
@@ -1700,7 +1896,11 @@ def api_accept_invite():
     user = query_one("SELECT * FROM users WHERE id=?", (uid,))
     if not user:
         return api_err("Account creation failed", 500)
-    return jsonify({"token": make_token(user), "user": {"id": user["id"], "name": user["name"], "role": user["role"]}}), 201
+    return jsonify({
+        "token": make_token(user),
+        "refresh_token": make_refresh_token(user["id"]),
+        "user": {"id": user["id"], "name": user["name"], "role": user["role"]},
+    }), 201
 
 
 @app.route("/api/invitations/check")
@@ -1739,7 +1939,7 @@ def api_invitation_check():
     return jsonify({"role": inv["role"], "email": inv["email"], "entity_name": entity_name})
 
 
-# ── Admin: add school ────────────────────────────────────────────────────────
+# Admin: add school
 
 @app.route("/api/schools", methods=["POST"])
 @require_role("admin")
@@ -1777,7 +1977,7 @@ def api_school_create():
     log_audit(u["id"], "create_school", "school", sid)
     return jsonify({"message": "School created", "id": sid, "invite_link": None}), 201
 
-# ── Admin: delete school ─────────────────────────────────────────────────────
+# Admin: delete school
 
 @app.route("/api/schools/<int:school_id>", methods=["DELETE"])
 @require_role("admin")
@@ -1791,7 +1991,7 @@ def api_school_delete(school_id: int):
     log_audit(u["id"], "delete_school", "school", school_id)
     return jsonify({"message": "School deleted"})
 
-# ── Admin: delete user ────────────────────────────────────────────────────────
+# Admin: delete user
 
 @app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
 @require_role("admin")
@@ -1803,7 +2003,7 @@ def api_admin_delete_user(user_id: int):
     log_audit(u["id"], "delete_user", "user", user_id)
     return jsonify({"message": "User deleted"})
 
-# ── School admin: own school dashboard ───────────────────────────────────────
+# School admin: own school dashboard
 
 @app.route("/api/my-school")
 @require_role("school_admin")
@@ -1841,7 +2041,7 @@ def api_my_school():
     })
 
 
-# ── Org publisher: own organisation dashboard ───────────────────────────────
+# Org publisher: own organisation dashboard
 
 @app.route("/api/my-org")
 @require_role("org_publisher")
@@ -1863,7 +2063,7 @@ def api_my_org():
             )
     return jsonify({"org": org, "announcements": announcements})
 
-# ── NGO officer: own organisation dashboard ───────────────────────────────────
+# NGO officer: own organisation dashboard
 
 @app.route("/api/my-ngo")
 @require_role("ngo_officer")
@@ -1966,4 +2166,11 @@ def internal_error(exc):
 
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True, port=5000)
+    # Skip the Werkzeug reloader's parent monitor process — it never serves
+    # requests, so starting the scheduler there would just double the jobs.
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+        from jobs import scheduler as background_jobs
+        background_jobs.start(app)
+    # threaded=True — the SSE stream in /api/notifications/stream holds its
+    # connection open, and the dev server is single-threaded by default.
+    app.run(debug=True, port=5000, threaded=True)

@@ -9,28 +9,28 @@
   }
 
   const ORG_ICON = {
-    'Ministry of General Education': '🏛️',
-    'State Ministry of Education':   '🏢',
-    'Examination Body':              '📋',
-    'University':                    '🎓',
-    'College':                       '🏫',
-    'School':                        '🏫',
-    'NGO':                           '🤝',
-    'Scholarship Provider':          '💰',
+    'Ministry of General Education': 'landmark',
+    'State Ministry of Education':   'building-2',
+    'Examination Body':              'clipboard-check',
+    'University':                    'graduation-cap',
+    'College':                       'school',
+    'School':                        'school',
+    'NGO':                           'handshake',
+    'Scholarship Provider':          'coins',
   };
 
-  // ── Render org cards ──────────────────────────────────────────────────────
+  // Render org cards
 
   function renderOrg(org) {
-    const icon = ORG_ICON[org.org_type] || '🏢';
+    const icon = ORG_ICON[org.org_type] || 'building-2';
     const state = org.state ? `<span class="tag tag-muted">${escHtml(org.state)}</span>` : '<span class="tag tag-muted">National</span>';
     const website = org.website
-      ? `<a href="${escHtml(org.website)}" target="_blank" rel="noopener" class="card-link">Visit website ↗</a>`
+      ? `<a href="${escHtml(org.website)}" target="_blank" rel="noopener" class="card-link"><i data-lucide="external-link" width="14" height="14"></i> Visit website</a>`
       : '';
     return `
       <div class="result-card">
         <div class="result-card-top">
-          <span style="font-size:1.8rem;line-height:1">${icon}</span>
+          <i data-lucide="${icon}" width="28" height="28"></i>
           ${state}
           <span class="tag" style="background:rgba(26,122,60,0.1);color:#1a7a3c">Verified</span>
         </div>
@@ -56,12 +56,13 @@
       const items = data.items || [];
       if (!items.length) { el.innerHTML = '<p class="empty-text">No organisations found.</p>'; return; }
       el.innerHTML = `<div class="results-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem">${items.map(renderOrg).join('')}</div>`;
+      if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
     } catch {
       el.innerHTML = '<p class="empty-text">Failed to load organisations.</p>';
     }
   }
 
-  // ── Join request form ─────────────────────────────────────────────────────
+  // Join request form
 
   async function handleJoinRequest(e) {
     e.preventDefault();
@@ -101,7 +102,7 @@
     }
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // Init
 
   function init() {
     const filterForm = document.getElementById('orgs-filter-form');

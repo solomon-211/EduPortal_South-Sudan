@@ -35,7 +35,7 @@ def _add_col_safe(table: str, col: str, coltype) -> None:
 
 
 def upgrade() -> None:
-    # ── Fix invitations table ─────────────────────────────────────────────────
+    # Fix invitations table
     _add_col_safe("invitations", "token_hash", sa.Text())
     _add_col_safe("invitations", "token_hint", sa.Text())
 
@@ -52,7 +52,7 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS idx_invitations_hint ON invitations(token_hint)"
     ))
 
-    # ── role_permissions ──────────────────────────────────────────────────────
+    # role_permissions
     op.execute(sa.text("""
         CREATE TABLE IF NOT EXISTS role_permissions (
             id         SERIAL PRIMARY KEY,
@@ -84,7 +84,7 @@ def upgrade() -> None:
             "INSERT INTO role_permissions (role, action) VALUES (:r, :a) ON CONFLICT DO NOTHING"
         ).bindparams(r=role, a=action))
 
-    # ── notifications ─────────────────────────────────────────────────────────
+    # notifications
     op.execute(sa.text("""
         CREATE TABLE IF NOT EXISTS notifications (
             id         SERIAL PRIMARY KEY,

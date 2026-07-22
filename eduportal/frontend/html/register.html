@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EduPortal South Sudan | Create Account</title>
   <link rel="stylesheet" href="/static/html/register.css">
+  {% if google_client_id %}<script src="https://accounts.google.com/gsi/client" async defer></script>{% endif %}
   <style>
     /* Register page: fit all content in viewport, no scrollbar */
     .right-panel {
@@ -38,7 +39,7 @@
 <body class="auth-page register-page" data-page="register">
 <main class="login-container">
 
-  <!-- â”€â”€ Left panel â”€â”€ -->
+  <!-- Left panel -->
   <section class="left-panel" aria-label="EduPortal South Sudan">
     <div class="left-panel-shapes">
       <div class="shape shape-1"></div>
@@ -108,7 +109,7 @@
     </div>
   </section>
 
-  <!-- â”€â”€ Right panel â”€â”€ -->
+  <!-- Right panel -->
   <section class="right-panel">
     <div class="auth-card auth-card-wide register-card">
 
@@ -129,6 +130,15 @@
         </div>
         <a class="create-link" href="/">Sign in instead</a>
       </div>
+
+      {% if google_client_id %}
+      <div id="g_id_onload"
+           data-client_id="{{ google_client_id }}"
+           data-callback="handleGoogleCredential"
+           data-auto_prompt="false"></div>
+      <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-width="360"></div>
+      <div class="auth-divider"><span>or</span></div>
+      {% endif %}
 
       <!-- Progress bar -->
       <div class="register-progress" aria-hidden="true">

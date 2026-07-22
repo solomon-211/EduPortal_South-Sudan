@@ -25,7 +25,7 @@ ORG_TYPES = (
 
 
 def upgrade() -> None:
-    # ── Verified organisations table ──────────────────────────────────────────
+    # Verified organisations table
     op.execute("""
         CREATE TABLE IF NOT EXISTS organizations (
             id           SERIAL PRIMARY KEY,
@@ -44,7 +44,7 @@ def upgrade() -> None:
     op.execute("CREATE INDEX IF NOT EXISTS idx_orgs_type    ON organizations(org_type)")
     op.execute("CREATE INDEX IF NOT EXISTS idx_orgs_verified ON organizations(verified)")
 
-    # ── Expand announcements table ────────────────────────────────────────────
+    # Expand announcements table
     # Add columns only if they don't exist (idempotent via DO block)
     for col, definition in [
         ("org_type",       "TEXT"),
@@ -65,7 +65,7 @@ def upgrade() -> None:
     op.execute("CREATE INDEX IF NOT EXISTS idx_ann_priority  ON announcements(priority)")
     op.execute("CREATE INDEX IF NOT EXISTS idx_ann_state     ON announcements(state)")
 
-    # ── Seed sample organisations ─────────────────────────────────────────────
+    # Seed sample organisations
     op.execute("""
         INSERT INTO organizations (name, org_type, state, email, verified)
         VALUES

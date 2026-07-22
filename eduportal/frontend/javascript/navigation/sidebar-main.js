@@ -10,7 +10,7 @@
   try { user = JSON.parse(localStorage.getItem('eduportal_user') || 'null'); } catch (e) { user = null; }
   var role = user ? (user.role || '') : '';
 
-  // ── Icons (Lucide via data-lucide attributes) ────────────────────────────
+  // Icons (Lucide via data-lucide attributes)
   var ICON_NAMES = {
     dashboard:     'layout-dashboard',
     directory:     'building-2',
@@ -28,7 +28,7 @@
     signin:           'log-in',
   };
 
-  // ── Nav structure with role permissions ───────────────────────────────────
+  // Nav structure with role permissions
   var ALL  = ['student','parent','teacher','school_admin','ngo_officer','admin'];
   var MOST = ['student','parent','teacher','school_admin','ngo_officer','admin'];
 
@@ -62,7 +62,7 @@
     ]});
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Helpers
   function esc(v) {
     return String(v == null ? '' : v)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -89,7 +89,7 @@
   // Brand logo
   var LOGO_SVG = '<svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true"><path d="M3 11l9-6 9 6-9 6-9-6Z" stroke="white" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 13v5l5 3 5-3v-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-  // ── Build HTML ────────────────────────────────────────────────────────────
+  // Build HTML
   var html = '';
 
   // Brand + account combined into one compact static header block
@@ -172,13 +172,18 @@
   if (logoutBtn) {
     logoutBtn.addEventListener('click', function(e) {
       e.preventDefault();
+      var refreshToken = localStorage.getItem('eduportal_refresh_token');
+      if (refreshToken) {
+        fetch('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refreshToken }) }).catch(function() {});
+      }
       localStorage.removeItem('eduportal_token');
+      localStorage.removeItem('eduportal_refresh_token');
       localStorage.removeItem('eduportal_user');
       window.location.href = '/';
     });
   }
 
-  // ── Mobile hamburger ──────────────────────────────────────────────────────
+  // Mobile hamburger
   nav.id = 'sidebar-nav';
 
   var overlay = document.createElement('div');
@@ -239,7 +244,7 @@
     link.addEventListener('click', function() { if (isMobile()) closeSidebar(); });
   });
 
-  // ── Top-bar: notification bell + account menu ─────────────────────────────
+  // Top-bar: notification bell + account menu
   var topActions = document.querySelector('.top-banner-actions, .top-actions');
   if (!topActions || !user || topActions.querySelector('[data-account-menu]')) return;
 
@@ -317,7 +322,12 @@
   });
 
   menuWrap.querySelector('[data-action="logout"]').addEventListener('click', function() {
+    var refreshToken = localStorage.getItem('eduportal_refresh_token');
+    if (refreshToken) {
+      fetch('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refreshToken }) }).catch(function() {});
+    }
     localStorage.removeItem('eduportal_token');
+    localStorage.removeItem('eduportal_refresh_token');
     localStorage.removeItem('eduportal_user');
     window.location.href = '/';
   });
@@ -329,26 +339,62 @@
 
   // Load notifications
   var token = localStorage.getItem('eduportal_token');
-  if (token) {
+
+  function setBadge(count) {
+    if (count > 0) {
+      bellBadge.textContent = String(count);
+      bellBadge.classList.remove('hidden');
+      bellBtn.setAttribute('aria-label', 'Notifications (' + count + ' unread)');
+    } else {
+      bellBadge.classList.add('hidden');
+      bellBtn.setAttribute('aria-label', 'Notifications');
+    }
+  }
+
+  function renderNotifications(items) {
+    bellList.innerHTML = items.length
+      ? items.map(function(n) {
+          var unread = n.persisted && !n.read;
+          var attrs = n.persisted ? ' data-notif-id="' + n.id + '"' : '';
+          return '<div class="bell-item' + (unread ? ' bell-item-unread' : '') + '"' + attrs + '>' +
+            '<strong>' + esc(n.title || '') + '</strong><span>' + esc(n.body || '') + '</span></div>';
+        }).join('')
+      : '<p class="top-notification-empty">No new notifications.</p>';
+  }
+
+  bellList.addEventListener('click', function(e) {
+    var item = e.target.closest('[data-notif-id]');
+    if (!item || !item.classList.contains('bell-item-unread')) return;
+    var id = item.dataset.notifId;
+    fetch('/api/notifications/' + id + '/read', {
+      method: 'POST', headers: { 'Authorization': 'Bearer ' + token },
+    }).then(function() {
+      item.classList.remove('bell-item-unread');
+      loadNotifications();
+    }).catch(function() {});
+  });
+
+  function loadNotifications() {
     fetch('/api/notifications', { headers: { 'Authorization': 'Bearer ' + token } })
       .then(function(r) { return r.ok ? r.json() : { items: [], count: 0 }; })
       .then(function(data) {
-        var cnt = (data && data.count) || 0;
-        var items = (data && Array.isArray(data.items)) ? data.items : [];
-        if (cnt > 0) {
-          bellBadge.textContent = String(cnt);
-          bellBadge.classList.remove('hidden');
-          bellBtn.setAttribute('aria-label', 'Notifications (' + cnt + ' unread)');
-        }
-        bellList.innerHTML = items.length
-          ? items.map(function(n) {
-              return '<div class="bell-item"><strong>' + esc(n.title || '') + '</strong><span>' + esc(n.body || '') + '</span></div>';
-            }).join('')
-          : '<p class="top-notification-empty">No new notifications.</p>';
+        setBadge((data && data.count) || 0);
+        renderNotifications((data && Array.isArray(data.items)) ? data.items : []);
       })
       .catch(function() {
         bellList.innerHTML = '<p class="top-notification-empty">No notifications available.</p>';
       });
+  }
+
+  if (token) {
+    loadNotifications();
+    // Live updates: refresh the bell the moment a new notification arrives
+    if (window.EventSource) {
+      var stream = new EventSource('/api/notifications/stream?token=' + encodeURIComponent(token));
+      stream.onmessage = function() { loadNotifications(); };
+      stream.onerror = function() { /* browser auto-reconnects */ };
+      window.addEventListener('beforeunload', function() { stream.close(); });
+    }
   } else {
     bellList.innerHTML = '<p class="top-notification-empty">Sign in to see notifications.</p>';
   }

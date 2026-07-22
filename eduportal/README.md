@@ -2,9 +2,9 @@
 
 Flask-based education portal for students, parents, teachers, school admins, NGO officers, and platform admins.
 
-## Required Top-Level Structure
+## Top-Level Structure
 
-The project is now organized into the three core areas you requested:
+The project is organized into three core areas:
 
 - `backend/`
 - `database/`
@@ -73,7 +73,7 @@ eduportal/
 └─ README.md
 ```
 
-## Frontend Organization (Requested)
+## Frontend Organization
 
 Frontend is organized by type:
 
@@ -208,6 +208,39 @@ If PostgreSQL is not configured, MySQL is used when these are set:
 - `MYSQL_USER`
 - `MYSQL_PASSWORD`
 - `MYSQL_DATABASE`
+
+## Sessions
+
+Login, registration, email verification, and Google Sign-In all return an access token (2h) plus a refresh token (30 days, single-use, rotated on every refresh). The frontend calls `POST /api/refresh` automatically when a request 401s, and `POST /api/logout` revokes the current refresh token. Changing a password revokes every other session for that account.
+
+## Notifications
+
+- `GET /api/notifications` returns persisted, per-user notifications (application status changes, scholarship deadline reminders) merged with a live feed of recent announcements.
+- `POST /api/notifications/<id>/read` and `POST /api/notifications/read-all` mark persisted notifications read.
+- `GET /api/notifications/stream` is a Server-Sent Events endpoint — the bell updates instantly when a notification is created, no polling. Pass the access token as `?token=` (browsers can't set custom headers on `EventSource`).
+- This uses an in-process pub/sub, so it only works as-is behind a single worker process. Running multiple Gunicorn workers would need a shared broker (e.g. Redis) for the SSE fan-out to reach every connection.
+
+## Web Push
+
+Enables browser notifications when EduPortal isn't open in a tab. Generate a VAPID keypair once:
+
+```powershell
+python -c "from py_vapid import Vapid02; v=Vapid02(); v.generate_keys()"
+```
+
+Set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_CLAIMS_SUB` in `.env`. Users opt in from Settings → Push Notifications; subscriptions are stored per-browser and pushed to whenever a notification is created.
+
+## Google Sign-In
+
+1. Create an OAuth client at the [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (Web application type; add your site as an Authorized JavaScript origin).
+2. Set `GOOGLE_CLIENT_ID` in `.env`.
+3. The "Continue with Google" button appears automatically on the login/register pages once that variable is set — it's hidden otherwise.
+
+First-time Google sign-in auto-creates a verified account (role `student`); an existing account with the same email is logged in directly.
+
+## Background Jobs
+
+APScheduler runs in-process, starting alongside the dev server (`python backend/app.py`). It currently checks every 6 hours (and once at startup) for scholarship deadlines 3 and 1 days out, notifying every applicant once per milestone by in-app notification + email. It does not run under `flask run` or a WSGI server that only imports the app — start it explicitly there if you deploy that way.
 
 ## Main URLs
 
