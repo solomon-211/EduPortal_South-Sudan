@@ -5,7 +5,7 @@ from flask import g
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import QueuePool
 
-from config.settings import DATABASE_URL
+from settings import DATABASE_URL
 
 log = logging.getLogger(__name__)
 

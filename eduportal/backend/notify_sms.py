@@ -4,7 +4,7 @@ import json
 import urllib.parse
 import urllib.request
 
-from config.settings import AT_API_KEY, AT_SENDER_ID
+from settings import AT_API_KEY, AT_SENDER_ID
 
 
 def send_sms(phone: str, message: str) -> bool:

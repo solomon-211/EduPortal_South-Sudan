@@ -5,9 +5,9 @@ from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from db.queries import query_all
-from notifications.email import send_email
-from notifications.store import already_notified, create_notification
+from db_queries import query_all
+from notify_email import send_email
+from notify_store import already_notified, create_notification
 
 log = logging.getLogger(__name__)
 

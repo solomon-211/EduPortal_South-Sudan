@@ -138,6 +138,8 @@
     html += '</div>';
   });
 
+  html += '</div>'; // close .sidebar-scroll — .sidebar-bottom below is a sibling, not nested inside it
+
   // Bottom: logout / sign in
   html += '<div class="sidebar-bottom">';
   if (user) {
@@ -145,8 +147,7 @@
   } else {
     html += '<a href="/"><span class="nav-icon" aria-hidden="true"><i data-lucide="log-in" width="15" height="15"></i></span>Sign In</a>';
   }
-  html += '</div>';
-  html += '</div>';
+  html += '</div>'; // close .sidebar-bottom
 
   nav.innerHTML = html;
 

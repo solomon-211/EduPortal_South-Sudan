@@ -16,20 +16,20 @@ from werkzeug.utils import secure_filename
 
 log = logging.getLogger(__name__)
 
-from auth.google_oauth import verify_google_token
-from auth.jwt_helpers import (
+from google_oauth import verify_google_token
+from jwt_helpers import (
     api_err, get_current_user, log_audit, make_refresh_token, make_token,
     require_auth, require_role, revoke_all_refresh_tokens, revoke_refresh_token,
     verify_refresh_token,
 )
-from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES, ALLOWED_EXTENSIONS, ALLOWED_MATERIAL_EXTS, UPLOAD_FOLDER, MATERIALS_FOLDER, ANNOUNCEMENTS_FOLDER, VAPID_PUBLIC_KEY, GOOGLE_CLIENT_ID
-from db.connection import get_db, close_conn
-from db.queries import count, execute, query_all, query_one
-from db.schema import init_db
-from notifications import push
-from notifications.email import send_email, send_verification_email
-from notifications.sms import send_sms
-from notifications.store import create_notification, subscribe, unsubscribe
+from settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES, ALLOWED_EXTENSIONS, ALLOWED_MATERIAL_EXTS, UPLOAD_FOLDER, MATERIALS_FOLDER, ANNOUNCEMENTS_FOLDER, VAPID_PUBLIC_KEY, GOOGLE_CLIENT_ID
+from db_connection import get_db, close_conn
+from db_queries import count, execute, query_all, query_one
+from db_schema import init_db
+import notify_push as push
+from notify_email import send_email, send_verification_email
+from notify_sms import send_sms
+from notify_store import create_notification, subscribe, unsubscribe
 from storage import save_file, public_url as storage_url, using_s3
 
 JWT_SECRET = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-change-in-prod")
@@ -108,19 +108,8 @@ def service_worker():
 @app.route("/static/<path:filename>")
 def static_files(filename: str):
     # CSS compatibility
-    if filename == "styles.css":
-        return send_from_directory(str(CSS_DIR), "styles.css")
-    if filename.startswith("pages/"):
-        return send_from_directory(str(CSS_DIR / "pages"), filename[len("pages/"):])
-    if filename.startswith("shared/"):
-        return send_from_directory(str(CSS_DIR / "shared"), filename[len("shared/"):])
-    if filename.startswith("layout/"):
-        return send_from_directory(str(CSS_DIR / "layout"), filename[len("layout/"):])
     if filename.startswith("html/"):
         return send_from_directory(str(CSS_DIR / "html"), filename[len("html/"):])
-    # Backward compatibility for previous modular imports under /static/css/**
-    if filename.startswith("css/layout/"):
-        return send_from_directory(str(CSS_DIR / "layout"), filename[len("css/layout/"):])
 
     # Marketing assets
     if filename == "marketing.css":
@@ -2169,7 +2158,7 @@ if __name__ == "__main__":
     # Skip the Werkzeug reloader's parent monitor process — it never serves
     # requests, so starting the scheduler there would just double the jobs.
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
-        from jobs import scheduler as background_jobs
+        import scheduler as background_jobs
         background_jobs.start(app)
     # threaded=True — the SSE stream in /api/notifications/stream holds its
     # connection open, and the dev server is single-threaded by default.

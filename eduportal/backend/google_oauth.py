@@ -3,7 +3,7 @@ from __future__ import annotations
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
-from config.settings import GOOGLE_CLIENT_ID
+from settings import GOOGLE_CLIENT_ID
 
 _request = google_requests.Request()
 

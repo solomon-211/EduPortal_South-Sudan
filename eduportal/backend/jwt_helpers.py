@@ -8,8 +8,8 @@ import bcrypt
 import jwt
 from flask import jsonify, request
 
-from config.settings import JWT_SECRET
-from db.queries import execute, query_all, query_one
+from settings import JWT_SECRET
+from db_queries import execute, query_all, query_one
 
 ACCESS_TOKEN_TTL = timedelta(hours=2)
 REFRESH_TOKEN_TTL = timedelta(days=30)

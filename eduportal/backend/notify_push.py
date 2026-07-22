@@ -5,8 +5,8 @@ import logging
 
 from pywebpush import WebPushException, webpush
 
-from config.settings import VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_CLAIMS_SUB
-from db.queries import execute, query_all
+from settings import VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_CLAIMS_SUB
+from db_queries import execute, query_all
 
 log = logging.getLogger(__name__)
 

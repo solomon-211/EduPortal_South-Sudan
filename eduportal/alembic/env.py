@@ -9,7 +9,7 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# Make backend/ importable so config.settings resolves
+# Make backend/ importable so settings resolves
 _HERE = Path(__file__).resolve().parent          # alembic/
 _ROOT = _HERE.parent                             # eduportal/
 _BACKEND = _ROOT / "backend"
@@ -24,7 +24,7 @@ load_dotenv(_ROOT / ".env")
 # Build the PostgreSQL URL
 
 def _db_url() -> str:
-    from config.settings import DATABASE_URL
+    from settings import DATABASE_URL
     return DATABASE_URL
 
 

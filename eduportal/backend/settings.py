@@ -3,7 +3,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -11,7 +11,6 @@ HTML_DIR = FRONTEND_DIR / "html"
 CSS_DIR = FRONTEND_DIR / "css"
 JS_DIR = FRONTEND_DIR / "javascript"
 ASSETS_DIR = FRONTEND_DIR / "assets"
-MIGRATIONS_DIR = BASE_DIR / "database" / "migrations"
 
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
 ALLOWED_MATERIAL_EXTS = {"pdf", "mp4", "webm", "ogg", "m4v"}

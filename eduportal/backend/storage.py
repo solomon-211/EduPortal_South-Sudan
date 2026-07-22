@@ -14,9 +14,9 @@ from pathlib import Path
 _USE_S3 = bool(os.environ.get("S3_BUCKET") and os.environ.get("S3_ACCESS_KEY"))
 
 if _USE_S3:
-    from storage.s3 import save as _save, public_url as _public_url
+    from storage_s3 import save as _save, public_url as _public_url
 else:
-    from storage.local import save as _save, public_url as _public_url
+    from storage_local import save as _save, public_url as _public_url
 
 
 def save_file(dest_dir: Path, filename: str, stream) -> str:

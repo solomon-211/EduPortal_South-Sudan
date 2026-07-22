@@ -2,7 +2,7 @@
 Regression tests — auth, materials, video-upload routes.
 
 Run from eduportal/:
-    pytest backend/tests/test_regression.py -v
+    pytest backend/test_regression.py -v
 
 Uses an in-memory SQLite database via SQLAlchemy so no external
 PostgreSQL server is required for CI or local test runs.
@@ -17,21 +17,20 @@ import pytest
 
 # Path setup
 # Make sure backend/ is importable
-_BACKEND = os.path.dirname(os.path.dirname(__file__))
+_BACKEND = os.path.dirname(os.path.abspath(__file__))
 if _BACKEND not in sys.path:
     sys.path.insert(0, _BACKEND)
 
 # Switch to SQLite before anything else imports the engine
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret")
+# Hard-override (not setdefault): tests must not depend on whatever the
+# developer's real .env happens to have configured for optional features.
+os.environ["GOOGLE_CLIENT_ID"] = ""
 
 # Now safe to import app
-from db.connection import engine  # noqa: E402 — must come after env setup
+from db_connection import engine  # noqa: E402 — must come after env setup
 from sqlalchemy import text
-
-# Create all tables in the in-memory SQLite DB using the initial schema SQL
-from pathlib import Path
-_MIGRATIONS = Path(__file__).resolve().parent.parent.parent / "database" / "migrations"
 
 
 def _apply_schema() -> None:
@@ -242,7 +241,7 @@ def _apply_schema() -> None:
 _apply_schema()
 
 # Patch schema.init_db to skip Alembic in tests
-import db.schema as _schema_module
+import db_schema as _schema_module
 _schema_module.init_db = lambda: None
 
 from app import app as flask_app, limiter as _limiter  # noqa: E402

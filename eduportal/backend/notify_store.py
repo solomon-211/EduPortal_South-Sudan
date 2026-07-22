@@ -3,7 +3,7 @@ from __future__ import annotations
 import queue
 import threading
 
-from db.queries import execute, query_one
+from db_queries import execute, query_one
 
 _subscribers: dict[int, list[queue.Queue]] = {}
 _lock = threading.Lock()
@@ -20,7 +20,7 @@ def create_notification(
     )
     publish(user_id, {"id": notif_id, "type": ntype, "title": title, "body": body, "read": False})
     try:
-        from notifications.push import send_push_to_user
+        from notify_push import send_push_to_user
         send_push_to_user(user_id, title, body)
     except Exception:
         pass  # push is best-effort — a provider hiccup should never break the caller

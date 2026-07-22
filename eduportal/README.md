@@ -4,134 +4,70 @@ Flask-based education portal for students, parents, teachers, school admins, NGO
 
 ## Top-Level Structure
 
-The project is organized into three core areas:
-
-- `backend/`
-- `database/`
-- `frontend/`
+- `backend/` — Flask app, database access, auth, notifications, background jobs
+- `alembic/` — database migrations (source of truth for the schema)
+- `frontend/` — HTML templates, CSS, JavaScript, and uploaded assets
 
 ## Current Directory Structure
 
 ```text
 eduportal/
-├─ backend/
-│  └─ app.py
-├─ database/
-│  └─ (MySQL schema/migration resources)
+├─ backend/                    (flat — no subdirectories)
+│  ├─ app.py                   Flask app, all routes
+│  ├─ settings.py               env-driven config, paths
+│  ├─ db_connection.py / db_queries.py / db_schema.py
+│  ├─ jwt_helpers.py            access/refresh tokens, role checks
+│  ├─ google_oauth.py           Google ID token verification
+│  ├─ scheduler.py              APScheduler background jobs
+│  ├─ notify_email.py / notify_sms.py / notify_push.py
+│  ├─ notify_store.py           persisted notifications + SSE pub/sub
+│  ├─ storage.py                picks local disk or S3 based on env vars
+│  ├─ storage_local.py / storage_s3.py
+│  └─ test_regression.py
+├─ alembic/
+│  ├─ env.py
+│  └─ versions/                (one file per migration, applied in order)
 ├─ frontend/
-│  ├─ html/
-│  │  ├─ login.html
-│  │  ├─ register.html
-│  │  ├─ dashboard.html
-│  │  ├─ admin.html
-│  │  ├─ school-dashboard.html
-│  │  ├─ ngo-dashboard.html
-│  │  ├─ directory.html
-│  │  ├─ materials.html
-│  │  ├─ opportunities.html
-│  │  ├─ announcements.html
-│  │  ├─ my-applications.html
-│  │  ├─ bookmarks.html
-│  │  ├─ profile.html
-│  │  ├─ settings.html
-│  │  ├─ school.html
-│  │  ├─ forgot-password.html
-│  │  ├─ accept-invite.html
-│  │  ├─ terms.html
-│  │  ├─ privacy.html
-│  │  └─ support.html
+│  ├─ html/                    (one template per page, plus html/marketing/)
 │  ├─ css/
-│  │  ├─ styles.css
-│  │  ├─ html/
-│  │  │  ├─ login.css
-│  │  │  ├─ register.css
-│  │  │  ├─ dashboard.css
-│  │  │  └─ ... (one CSS file per HTML page)
-│  │  ├─ layout/
-│  │  │  ├─ shell-layout.css
-│  │  │  └─ mobile-sidebar.css
-│  │  ├─ auth/
-│  │  │  └─ register.css
-│  │  ├─ pages/
-│  │  │  ├─ dashboard.css
-│  │  │  ├─ admin.css
-│  │  │  └─ school-dashboard.css
-│  │  └─ shared/
-│  │     └─ shell.css
+│  │  ├─ marketing.css
+│  │  └─ html/                 (one self-contained stylesheet per page)
 │  ├─ javascript/
-│  │  ├─ app.js
+│  │  ├─ app.js                (loader that injects app/main.js)
 │  │  ├─ sidebar.js
-│  │  ├─ app/
-│  │  │  └─ main.js
-│  │  └─ navigation/
-│  │     └─ sidebar-main.js
+│  │  ├─ sw.js                 (service worker for Web Push)
+│  │  ├─ app/                  (main.js + per-feature modules)
+│  │  └─ navigation/sidebar-main.js
 │  └─ assets/
 │     ├─ avatars/
 │     └─ materials/
-├─ eduportal.conf
 ├─ requirements.txt
 └─ README.md
 ```
 
 ## Frontend Organization
 
-Frontend is organized by type:
+- `frontend/html/`: page templates rendered by Flask
+- `frontend/css/`: one self-contained stylesheet per page under `css/html/`, plus `marketing.css` for the public marketing pages — no shared base stylesheet, each page's CSS is complete on its own
+- `frontend/javascript/`: entry scripts and modular client logic
+- `frontend/assets/`: uploaded files (avatars/materials)
 
-- `frontend/html/`: all HTML files
-- `frontend/css/`: all CSS files
-- `frontend/javascript/`: all JavaScript files
-
-Page-based CSS naming is now in place for easy checking:
-
-- each HTML file has a matching CSS file under `frontend/css/html/`
-- each page CSS is self-contained and does not import from `styles.css`
-- examples:
-  - `frontend/html/login.html` -> `frontend/css/html/login.css`
-  - `frontend/html/dashboard.html` -> `frontend/css/html/dashboard.css`
-  - `frontend/html/settings.html` -> `frontend/css/html/settings.css`
-
-Static binary uploads are kept in `frontend/assets/`:
-
-- `frontend/assets/avatars/`
-- `frontend/assets/materials/`
-
-## What Each Main Folder Does
-
-### backend/
-
-- Flask API and web server logic (`app.py`)
-- Authentication/authorization
-- Database migrations and CRUD operations
-- Static URL compatibility routing (`/static/...`)
-
-### database/
-
-- MySQL schema and migration resources.
-- Runtime data is stored in your configured MySQL database.
-
-### frontend/
-
-- `html/`: page templates rendered by Flask
-- `css/`: global, shared, and page-specific styles
-- `javascript/`: entry scripts and modular client logic
-- `assets/`: uploaded files (avatars/materials)
+Examples:
+- `frontend/html/login.html` -> `frontend/css/html/login.css`
+- `frontend/html/dashboard.html` -> `frontend/css/html/dashboard.css`
 
 ## URL Compatibility
 
-Existing page links still work with `/static/...` URLs.
+Static assets are served from `/static/...`:
 
-Examples:
-
-- `/static/styles.css` -> `frontend/css/styles.css`
 - `/static/html/<page>.css` -> `frontend/css/html/<page>.css`
 - `/static/app.js` -> `frontend/javascript/app.js`
 - `/static/sidebar.js` -> `frontend/javascript/sidebar.js`
-- `/static/layout/shell-layout.css` -> `frontend/css/layout/shell-layout.css`
-- `/static/auth/register.css` -> `frontend/css/auth/register.css`
 - `/static/app/main.js` -> `frontend/javascript/app/main.js`
 - `/static/navigation/sidebar-main.js` -> `frontend/javascript/navigation/sidebar-main.js`
 - `/static/avatars/...` -> `frontend/assets/avatars/...`
 - `/static/materials/...` -> `frontend/assets/materials/...`
+- `/sw.js` is served from the root path (not `/static/`) so its service worker scope covers the whole site.
 
 ## Run Locally
 
@@ -145,13 +81,7 @@ python backend\app.py
 
 ## Database Mode
 
-This project now supports PostgreSQL as the primary production database.
-
-Backend selection order is:
-
-1. PostgreSQL (when configured)
-2. MySQL (legacy compatibility)
-3. SQLite fallback (`database/eduportal.sqlite3`) for local development
+PostgreSQL is the production database. If `DATABASE_URL` / `POSTGRES_*` aren't set, `config/settings.py` falls back to an in-memory or file-based SQLite database — the test suite relies on this, and it's fine for a quick look around, but not for real use (background jobs, refresh-token storage, and file uploads all expect a real database to persist across restarts).
 
 ### PostgreSQL (recommended)
 
@@ -170,20 +100,19 @@ or
 
 Quick setup:
 
-1. Run `database/postgres_setup.sql` in `psql` as a superuser.
-2. Copy `.env.example` to `.env`.
-3. Update `.env` values (especially `POSTGRES_PASSWORD`).
-4. Start the backend with `python backend\app.py`.
+1. Create the database and a role for the app, e.g. in `psql` as a superuser:
 
-Example:
+   ```sql
+   CREATE ROLE eduportal_app LOGIN PASSWORD 'CHANGE_ME';
+   CREATE DATABASE eduportal OWNER eduportal_app;
+   ```
+
+2. Copy `.env.example` to `.env` and fill in `POSTGRES_PASSWORD` (and any other values you're changing).
+3. Start the backend — `python backend\app.py` runs Alembic migrations against an empty database automatically on first boot, then seeds it with demo schools/scholarships/announcements.
 
 ```powershell
 cd "c:\Users\HP\OneDrive\Desktop\EduPortal South Sudan\EduPortal_South-Sudan\eduportal"
 Copy-Item .env.example .env
-
-# Run SQL bootstrap as postgres superuser
-psql -U postgres -f .\database\postgres_setup.sql
-
 python .\backend\app.py
 ```
 
@@ -199,15 +128,7 @@ Expected shape:
 - `database.engine: postgres`
 - `database.connected: true`
 
-### MySQL (legacy)
-
-If PostgreSQL is not configured, MySQL is used when these are set:
-
-- `MYSQL_HOST`
-- `MYSQL_PORT`
-- `MYSQL_USER`
-- `MYSQL_PASSWORD`
-- `MYSQL_DATABASE`
+If PostgreSQL isn't reachable, `config/settings.py` falls back to a local SQLite file — fine for a quick look around, but the test suite is the only thing that relies on this in practice.
 
 ## Sessions
 

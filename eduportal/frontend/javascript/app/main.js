@@ -1026,71 +1026,6 @@
   }
 
   // Announcements
-  async function initAnnouncements() {
-    const form    = document.getElementById('announcements-filter-form');
-    const results = document.getElementById('announcements-results');
-    if (!results) return;
-
-    const user = getUser();
-    if (user && ['school_admin','ngo_officer','admin'].includes(user.role)) {
-      const postSection = document.getElementById('post-announcement-section');
-      if (postSection) postSection.classList.remove('hidden');
-    }
-
-    const postForm = document.getElementById('post-announcement-form');
-    const postMsg  = document.getElementById('post-ann-message');
-    if (postForm) {
-      postForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = postForm.querySelector('button[type="submit"]');
-        btn.disabled = true;
-        setMsg(postMsg, 'Submitting\u2026');
-        const fd = Object.fromEntries(new FormData(postForm));
-        try {
-          await api('/api/announcements', { method: 'POST', body: JSON.stringify(fd) });
-          setMsg(postMsg, 'Submitted for admin review.');
-          postForm.reset();
-        } catch (err) {
-          setMsg(postMsg, err.message, true);
-        } finally { btn.disabled = false; }
-      });
-    }
-
-    async function load() {
-      results.innerHTML = '<p class="loading-text">Loading\u2026</p>';
-      const params = new URLSearchParams(form ? new FormData(form) : {});
-      [...params.entries()].forEach(([k, v]) => { if (!v) params.delete(k); });
-      try {
-        const { items } = await api(`/api/announcements?${params}`);
-        results.innerHTML = items.length
-          ? items.map(a => `
-              <article class="ann-list-item">
-                <div class="ann-list-meta">
-                  <span class="tag">${esc(a.source_type)}</span>
-                  <span class="tag tag-muted">${esc(a.audience)}</span>
-                </div>
-                <div class="ann-list-body">
-                  <h3 class="ann-list-title">${esc(a.title)}</h3>
-                  <p class="ann-list-preview">${esc(a.body)}</p>
-                  <div class="ann-list-footer">
-                    <span class="deadline-badge">Expires: ${esc(a.expires_at || 'N/A')}</span>
-                    ${a.attachment_path ? `<a href="${esc(a.attachment_path)}" target="_blank" rel="noopener" class="card-link"><i data-lucide="paperclip" width="14" height="14"></i> Download</a>` : a.attachment_url ? `<a href="${esc(a.attachment_url)}" target="_blank" rel="noopener" class="card-link"><i data-lucide="external-link" width="14" height="14"></i> View attachment</a>` : ''}
-                    <span class="u-school-copy-inline">${esc(a.created_at ? a.created_at.slice(0,10) : '')}</span>
-                  </div>
-                </div>
-              </article>`).join('')
-          : '<p class="empty-text">No announcements found.</p>';
-        if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
-      } catch (err) {
-        results.innerHTML = `<p class="u-copy-danger">${esc(err.message)}</p>`;
-      }
-    }
-
-    form && form.addEventListener('submit', (e) => { e.preventDefault(); load(); });
-    load();
-  }
-
-
   // My Applications
   async function initMyApplications() {
     if (!getToken()) { window.location.href = '/'; return; }
@@ -2669,7 +2604,6 @@
     if (document.getElementById('school-shell'))  initSchoolProfile();
     if (page === 'materials')        initMaterials();
     if (page === 'opportunities')    initOpportunities();
-    if (page === 'announcements')    initAnnouncements();
     if (page === 'my-applications')  initMyApplications();
     if (page === 'bookmarks')        initBookmarks();
     if (page === 'profile')          initProfile();

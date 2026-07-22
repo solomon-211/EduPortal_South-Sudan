@@ -5,8 +5,8 @@ import subprocess
 import sys
 import bcrypt
 
-from config.settings import BASE_DIR
-from db.connection import get_db
+from settings import BASE_DIR
+from db_connection import get_db
 
 log = logging.getLogger(__name__)
 

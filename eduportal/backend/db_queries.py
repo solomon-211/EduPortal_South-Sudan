@@ -1,6 +1,6 @@
 from sqlalchemy import text
 
-from db.connection import get_conn
+from db_connection import get_conn
 
 
 def query_all(sql, params=()):
