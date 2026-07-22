@@ -20,7 +20,7 @@ from config.settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_
 from db.connection import get_db, close_conn
 from db.queries import count, execute, query_all, query_one
 from db.schema import init_db
-from notifications.email import send_email
+from notifications.email import send_email, send_verification_email
 from notifications.sms import send_sms
 from storage import save_file, public_url as storage_url, using_s3
 
@@ -103,15 +103,11 @@ def static_files(filename: str):
         return send_from_directory(str(CSS_DIR / "shared"), filename[len("shared/"):])
     if filename.startswith("layout/"):
         return send_from_directory(str(CSS_DIR / "layout"), filename[len("layout/"):])
-    if filename.startswith("auth/"):
-        return send_from_directory(str(CSS_DIR / "auth"), filename[len("auth/"):])
     if filename.startswith("html/"):
         return send_from_directory(str(CSS_DIR / "html"), filename[len("html/"):])
     # Backward compatibility for previous modular imports under /static/css/**
     if filename.startswith("css/layout/"):
         return send_from_directory(str(CSS_DIR / "layout"), filename[len("css/layout/"):])
-    if filename.startswith("css/auth/"):
-        return send_from_directory(str(CSS_DIR / "auth"), filename[len("css/auth/"):])
 
     # Marketing assets
     if filename == "marketing.css":
@@ -284,7 +280,10 @@ def api_login():
     )
     if not user:
         return api_err("Invalid credentials", 401)
-    if int(user.get("verified", 0)) < 1:
+    verified = int(user.get("verified", 0))
+    if verified == 0:
+        return api_err("Please verify your email address before signing in. Check your inbox for the verification link.", 403)
+    if verified < 0:
         return api_err("This account is deactivated", 403)
     try:
         valid = bcrypt.checkpw(password.encode(), user["password_hash"].encode())
@@ -297,6 +296,7 @@ def api_login():
 @app.route("/api/register", methods=["POST"])
 @limiter.limit("5 per minute")
 def api_register():
+    import secrets
     data   = request.get_json(silent=True) or {}
     name   = (data.get("name") or "").strip()[:120]
     email  = (data.get("email") or "").strip().lower()[:120] or None
@@ -314,14 +314,93 @@ def api_register():
     if query_one("SELECT id FROM users WHERE email=? OR phone=?", (email, phone)):
         return api_err("An account with those details already exists", 409)
     pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    # Accounts with an email start unverified; phone-only accounts are auto-verified
+    needs_verification = bool(email)
     uid = execute(
-        "INSERT INTO users (name,email,phone,password_hash,role,state,county,verified) VALUES (?,?,?,?,?,?,?,1)",
-        (name, email, phone, pw_hash, role, state, county),
+        "INSERT INTO users (name,email,phone,password_hash,role,state,county,verified) VALUES (?,?,?,?,?,?,?,?)",
+        (name, email, phone, pw_hash, role, state, county, 0 if needs_verification else 1),
     )
     user = query_one("SELECT * FROM users WHERE id=?", (uid,))
     if not user:
         return api_err("Registration failed", 500)
+    if needs_verification:
+        token = secrets.token_urlsafe(32)
+        expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        execute(
+            """INSERT INTO email_verifications (user_id, token, expires_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT (user_id) DO UPDATE
+               SET token=EXCLUDED.token, expires_at=EXCLUDED.expires_at, created_at=CURRENT_TIMESTAMP""",
+            (uid, token, expires_at),
+        )
+        base_url = request.host_url.rstrip("/")
+        verify_url = f"{base_url}/api/verify-email?token={token}"
+        email_sent = send_verification_email(email, name, verify_url)
+        response: dict = {
+            "message": "Registration successful. Please check your email to verify your account.",
+            "email_verification_required": True,
+        }
+        if not email_sent:
+            response["dev_verify_url"] = verify_url
+            response["note"] = "Configure SMTP_HOST in .env to send verification emails in production."
+        return jsonify(response), 201
     return jsonify({"token": make_token(user), "user": {"id": user["id"], "name": user["name"], "role": user["role"]}}), 201
+
+@app.route("/api/verify-email")
+def api_verify_email():
+    token = (request.args.get("token") or "").strip()
+    if not token:
+        return api_err("Verification token is required")
+    row = query_one(
+        "SELECT * FROM email_verifications WHERE token=?",
+        (token,),
+    )
+    if not row:
+        return api_err("Invalid or already-used verification link", 400)
+    # Check expiry
+    from datetime import datetime, timezone
+    expires_raw = str(row.get("expires_at") or "").replace("Z", "+00:00")
+    try:
+        expires_at = datetime.fromisoformat(expires_raw)
+    except ValueError:
+        expires_at = datetime.now(timezone.utc)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expires_at:
+        return api_err("This verification link has expired. Please request a new one.", 400)
+    execute("UPDATE users SET verified=1 WHERE id=?", (row["user_id"],))
+    execute("DELETE FROM email_verifications WHERE user_id=?", (row["user_id"],))
+    user = query_one("SELECT * FROM users WHERE id=?", (row["user_id"],))
+    if not user:
+        return api_err("Account not found", 404)
+    return jsonify({"message": "Email verified successfully. You can now sign in.", "token": make_token(user)})
+
+
+@app.route("/api/resend-verification", methods=["POST"])
+@limiter.limit("3 per minute")
+def api_resend_verification():
+    import secrets
+    data  = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        return api_err("email is required")
+    user = query_one("SELECT * FROM users WHERE lower(email)=?", (email,))
+    # Always return success to avoid enumeration
+    if user and int(user.get("verified", 1)) == 0:
+        token = secrets.token_urlsafe(32)
+        expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        execute(
+            """INSERT INTO email_verifications (user_id, token, expires_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT (user_id) DO UPDATE
+               SET token=EXCLUDED.token, expires_at=EXCLUDED.expires_at, created_at=CURRENT_TIMESTAMP""",
+            (user["id"], token, expires_at),
+        )
+        base_url = request.host_url.rstrip("/")
+        verify_url = f"{base_url}/api/verify-email?token={token}"
+        send_verification_email(email, user["name"], verify_url)
+    return jsonify({"message": "If that email is registered and unverified, a new link has been sent."})
+
 
 @app.route("/api/me")
 @require_auth

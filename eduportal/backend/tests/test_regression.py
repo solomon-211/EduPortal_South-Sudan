@@ -111,7 +111,14 @@ def _apply_schema() -> None:
             body TEXT NOT NULL,
             source_type TEXT NOT NULL,
             source_id INTEGER,
+            org_type TEXT,
+            org_name TEXT,
+            org_id INTEGER,
             audience TEXT NOT NULL,
+            priority TEXT NOT NULL DEFAULT 'normal',
+            state TEXT,
+            attachment_url TEXT,
+            attachment_path TEXT,
             expires_at TEXT,
             approved INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -198,6 +205,12 @@ def _apply_schema() -> None:
             read INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS email_verifications (
+            user_id INTEGER PRIMARY KEY,
+            token TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
     """
     with engine.connect() as conn:
         for stmt in ddl.split(";"):
@@ -239,6 +252,10 @@ def _register(client, email: str, password: str = "Password1!", role: str = "stu
         "county": "Juba",
     })
     assert rv.status_code == 201, rv.get_json()
+    # Force-verify in DB so existing tests can log in immediately
+    with engine.connect() as conn:
+        conn.execute(text("UPDATE users SET verified=1 WHERE email=:e"), {"e": email})
+        conn.commit()
     return rv.get_json()
 
 
@@ -263,8 +280,9 @@ class TestAuth:
         })
         assert rv.status_code == 201
         data = rv.get_json()
-        assert "token" in data
-        assert data["user"]["role"] == "student"
+        # Email-based registration now requires verification before a JWT is issued
+        assert data.get("email_verification_required") is True
+        assert "token" not in data
 
     def test_register_duplicate_email(self, client):
         client.post("/api/register", json={
@@ -593,3 +611,105 @@ class TestForgotPassword:
             "user_id": 1, "token": "badtoken", "new_password": "NewPass99!",
         })
         assert rv.status_code == 400
+
+
+# ── Email Verification ────────────────────────────────────────────────────────
+
+class TestEmailVerification:
+    def _register_unverified(self, client, email: str) -> dict:
+        """Register without force-verifying — returns raw response data."""
+        rv = client.post("/api/register", json={
+            "name": "Unverified User",
+            "email": email,
+            "password": "Password1!",
+            "role": "student",
+            "state": "",
+            "county": "",
+        })
+        assert rv.status_code == 201, rv.get_json()
+        return rv.get_json()
+
+    def _get_token_from_db(self, email: str) -> str | None:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT ev.token FROM email_verifications ev "
+                     "JOIN users u ON u.id=ev.user_id WHERE u.email=:e"),
+                {"e": email},
+            ).fetchone()
+        return row[0] if row else None
+
+    def test_register_returns_verification_required(self, client):
+        rv = client.post("/api/register", json={
+            "name": "Vera", "email": "vera@test.ss",
+            "password": "Password1!", "role": "student",
+            "state": "", "county": "",
+        })
+        assert rv.status_code == 201
+        data = rv.get_json()
+        assert data.get("email_verification_required") is True
+        assert "token" not in data  # no JWT until verified
+
+    def test_unverified_user_cannot_login(self, client):
+        self._register_unverified(client, "unverified@test.ss")
+        rv = client.post("/api/login", json={
+            "identifier": "unverified@test.ss", "password": "Password1!",
+        })
+        assert rv.status_code == 403
+        assert "verify" in rv.get_json()["error"].lower()
+
+    def test_verify_email_with_valid_token(self, client):
+        self._register_unverified(client, "toverify@test.ss")
+        token = self._get_token_from_db("toverify@test.ss")
+        assert token is not None
+        rv = client.get(f"/api/verify-email?token={token}")
+        assert rv.status_code == 200
+        data = rv.get_json()
+        assert "token" in data  # JWT returned on success
+        assert "verified" in data["message"].lower()
+
+    def test_verified_user_can_login(self, client):
+        self._register_unverified(client, "afterverify@test.ss")
+        token = self._get_token_from_db("afterverify@test.ss")
+        client.get(f"/api/verify-email?token={token}")
+        rv = client.post("/api/login", json={
+            "identifier": "afterverify@test.ss", "password": "Password1!",
+        })
+        assert rv.status_code == 200
+        assert "token" in rv.get_json()
+
+    def test_verify_email_invalid_token(self, client):
+        rv = client.get("/api/verify-email?token=totallywrongtoken")
+        assert rv.status_code == 400
+
+    def test_verify_email_token_cannot_be_reused(self, client):
+        self._register_unverified(client, "reuse@test.ss")
+        token = self._get_token_from_db("reuse@test.ss")
+        client.get(f"/api/verify-email?token={token}")
+        rv = client.get(f"/api/verify-email?token={token}")
+        assert rv.status_code == 400
+
+    def test_verify_email_expired_token(self, client):
+        self._register_unverified(client, "expired@test.ss")
+        # Manually expire the token in the DB
+        with engine.connect() as conn:
+            conn.execute(
+                text("UPDATE email_verifications SET expires_at='2000-01-01 00:00:00' "
+                     "WHERE user_id=(SELECT id FROM users WHERE email='expired@test.ss')"),
+            )
+            conn.commit()
+        token = self._get_token_from_db("expired@test.ss")
+        rv = client.get(f"/api/verify-email?token={token}")
+        assert rv.status_code == 400
+        assert "expired" in rv.get_json()["error"].lower()
+
+    def test_resend_verification_always_returns_200(self, client):
+        rv = client.post("/api/resend-verification", json={"email": "nobody@test.ss"})
+        assert rv.status_code == 200
+
+    def test_resend_verification_replaces_token(self, client):
+        self._register_unverified(client, "resend@test.ss")
+        old_token = self._get_token_from_db("resend@test.ss")
+        client.post("/api/resend-verification", json={"email": "resend@test.ss"})
+        new_token = self._get_token_from_db("resend@test.ss")
+        assert new_token is not None
+        assert new_token != old_token
