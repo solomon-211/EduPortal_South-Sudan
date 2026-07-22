@@ -5,7 +5,10 @@ Revises: 0003
 Create Date: 2025-01-04 00:00:00.000000
 """
 from __future__ import annotations
+
 from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.engine import reflection
 
 revision: str = "0004"
 down_revision = "0003"
@@ -24,14 +27,23 @@ ORG_TYPES = (
 )
 
 
+def _col_exists(table: str, col: str) -> bool:
+    bind = op.get_bind()
+    insp = reflection.Inspector.from_engine(bind)
+    return any(c["name"] == col for c in insp.get_columns(table))
+
+
 def upgrade() -> None:
+    bind = op.get_bind()
+    pk = "INT AUTO_INCREMENT PRIMARY KEY" if bind.dialect.name == "mysql" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+
     # Verified organisations table
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS organizations (
-            id           SERIAL PRIMARY KEY,
+            id           {pk},
             name         TEXT NOT NULL,
-            org_type     TEXT NOT NULL,
-            state        TEXT,
+            org_type     VARCHAR(100) NOT NULL,
+            state        VARCHAR(100),
             email        TEXT,
             phone        TEXT,
             website      TEXT,
@@ -41,48 +53,54 @@ def upgrade() -> None:
         )
     """)
 
-    op.execute("CREATE INDEX IF NOT EXISTS idx_orgs_type    ON organizations(org_type)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_orgs_verified ON organizations(verified)")
+    if bind.dialect.name == "mysql":
+        op.execute("CREATE INDEX idx_orgs_type ON organizations(org_type)")
+        op.execute("CREATE INDEX idx_orgs_verified ON organizations(verified)")
+    else:
+        op.execute("CREATE INDEX IF NOT EXISTS idx_orgs_type    ON organizations(org_type)")
+        op.execute("CREATE INDEX IF NOT EXISTS idx_orgs_verified ON organizations(verified)")
 
-    # Expand announcements table
-    # Add columns only if they don't exist (idempotent via DO block)
-    for col, definition in [
-        ("org_type",       "TEXT"),
-        ("org_name",       "TEXT"),
-        ("org_id",         "INTEGER"),
-        ("priority",       "TEXT NOT NULL DEFAULT 'normal'"),
-        ("attachment_url", "TEXT"),
-        ("state",          "TEXT"),
+    # Expand announcements table — add columns only if they don't already exist
+    for col, column in [
+        ("org_type",       sa.Column("org_type", sa.String(100))),
+        ("org_name",       sa.Column("org_name", sa.Text())),
+        ("org_id",         sa.Column("org_id", sa.Integer())),
+        ("priority",       sa.Column("priority", sa.String(20), nullable=False, server_default="normal")),
+        ("attachment_url", sa.Column("attachment_url", sa.Text())),
+        ("state",          sa.Column("state", sa.String(100))),
     ]:
-        op.execute(f"""
-            DO $$ BEGIN
-                ALTER TABLE announcements ADD COLUMN {col} {definition};
-            EXCEPTION WHEN duplicate_column THEN NULL;
-            END $$;
-        """)
+        if not _col_exists("announcements", col):
+            op.add_column("announcements", column)
 
-    op.execute("CREATE INDEX IF NOT EXISTS idx_ann_org_type ON announcements(org_type)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_ann_priority  ON announcements(priority)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_ann_state     ON announcements(state)")
+    if bind.dialect.name == "mysql":
+        op.execute("CREATE INDEX idx_ann_org_type ON announcements(org_type)")
+        op.execute("CREATE INDEX idx_ann_priority  ON announcements(priority)")
+        op.execute("CREATE INDEX idx_ann_state     ON announcements(state)")
+    else:
+        op.execute("CREATE INDEX IF NOT EXISTS idx_ann_org_type ON announcements(org_type)")
+        op.execute("CREATE INDEX IF NOT EXISTS idx_ann_priority  ON announcements(priority)")
+        op.execute("CREATE INDEX IF NOT EXISTS idx_ann_state     ON announcements(state)")
 
     # Seed sample organisations
-    op.execute("""
-        INSERT INTO organizations (name, org_type, state, email, verified)
+    seed_sql = """
+        INSERT{ignore} INTO organizations (name, org_type, state, email, verified)
         VALUES
           ('Ministry of General Education and Instruction', 'Ministry of General Education', 'National', 'info@moe.gov.ss', 1),
           ('South Sudan National Examinations Council',     'Examination Body',              'National', 'info@ssnec.gov.ss', 1),
           ('University of Juba',                           'University',                    'Central Equatoria', 'info@uoj.edu.ss', 1),
           ('Upper Nile University',                        'University',                    'Upper Nile', 'info@unu.edu.ss', 1)
-        ON CONFLICT DO NOTHING
-    """)
+        {conflict_clause}
+    """
+    if bind.dialect.name == "mysql":
+        op.execute(seed_sql.format(ignore=" IGNORE", conflict_clause=""))
+    else:
+        op.execute(seed_sql.format(ignore="", conflict_clause="ON CONFLICT DO NOTHING"))
 
 
 def downgrade() -> None:
-    op.execute("DROP TABLE IF EXISTS organizations CASCADE")
-    for col in ("org_type", "org_name", "org_id", "priority", "attachment_url", "state"):
-        op.execute(f"""
-            DO $$ BEGIN
-                ALTER TABLE announcements DROP COLUMN {col};
-            EXCEPTION WHEN undefined_column THEN NULL;
-            END $$;
-        """)
+    op.execute("DROP TABLE IF EXISTS organizations")
+    bind = op.get_bind()
+    if bind.dialect.name != "sqlite":
+        for col in ("org_type", "org_name", "org_id", "priority", "attachment_url", "state"):
+            if _col_exists("announcements", col):
+                op.drop_column("announcements", col)

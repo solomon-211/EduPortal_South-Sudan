@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 load_dotenv(_ROOT / ".env")
 
 
-# Build the PostgreSQL URL
+# Build the database URL (MySQL in production, SQLite for local dev/test)
 
 def _db_url() -> str:
     from settings import DATABASE_URL

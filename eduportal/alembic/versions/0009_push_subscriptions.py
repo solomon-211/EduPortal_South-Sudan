@@ -16,21 +16,26 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(sa.text("""
+    bind = op.get_bind()
+    pk = "INT AUTO_INCREMENT PRIMARY KEY" if bind.dialect.name == "mysql" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+
+    op.execute(sa.text(f"""
         CREATE TABLE IF NOT EXISTS push_subscriptions (
-            id         SERIAL PRIMARY KEY,
-            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            endpoint   TEXT NOT NULL,
+            id         {pk},
+            user_id    INTEGER NOT NULL,
+            endpoint   VARCHAR(600) NOT NULL,
             p256dh     TEXT NOT NULL,
             auth       TEXT NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE (endpoint)
+            UNIQUE (endpoint),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """))
-    op.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_push_sub_user ON push_subscriptions(user_id)"
-    ))
+    if bind.dialect.name == "mysql":
+        op.execute(sa.text("CREATE INDEX idx_push_sub_user ON push_subscriptions(user_id)"))
+    else:
+        op.execute(sa.text("CREATE INDEX IF NOT EXISTS idx_push_sub_user ON push_subscriptions(user_id)"))
 
 
 def downgrade() -> None:
-    op.execute(sa.text("DROP TABLE IF EXISTS push_subscriptions CASCADE"))
+    op.execute(sa.text("DROP TABLE IF EXISTS push_subscriptions"))

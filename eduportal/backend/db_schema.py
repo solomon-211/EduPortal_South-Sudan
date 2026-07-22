@@ -6,7 +6,7 @@ import sys
 import bcrypt
 
 from settings import BASE_DIR
-from db_connection import get_db
+from db_connection import get_db, engine
 
 log = logging.getLogger(__name__)
 
@@ -46,9 +46,10 @@ def _seed(conn) -> None:
     from sqlalchemy import text
 
     pw = bcrypt.hashpw(b"Admin1234!", bcrypt.gensalt()).decode()
+    ignore_kw = "INSERT IGNORE" if engine.dialect.name == "mysql" else "INSERT OR IGNORE"
     conn.execute(text(
-        "INSERT INTO users (name,email,phone,password_hash,role,state,county,verified) "
-        "VALUES (:n,:e,:p,:h,:r,:s,:c,1) ON CONFLICT DO NOTHING"
+        f"{ignore_kw} INTO users (name,email,phone,password_hash,role,state,county,verified) "
+        "VALUES (:n,:e,:p,:h,:r,:s,:c,1)"
     ), dict(n="Platform Admin", e="admin@eduportal.ss", p="+211000000000",
             h=pw, r="admin", s="Central Equatoria", c="Juba"))
 
@@ -66,13 +67,13 @@ def _seed(conn) -> None:
     ]
     school_ids: list[int] = []
     for s in schools:
-        row = conn.execute(text(
+        result = conn.execute(text(
             "INSERT INTO schools (name,state,county,level,type,curriculum,contact_name,phone,"
             "email,capacity,status,enrollment,language,boarding,hours,description) "
-            "VALUES (:a,:b,:c,:d,:e,:f,:g,:h,:i,:j,:k,:l,:m,:n,:o,:p) RETURNING id"
+            "VALUES (:a,:b,:c,:d,:e,:f,:g,:h,:i,:j,:k,:l,:m,:n,:o,:p)"
         ), dict(a=s[0],b=s[1],c=s[2],d=s[3],e=s[4],f=s[5],g=s[6],h=s[7],
-                i=s[8],j=s[9],k=s[10],l=s[11],m=s[12],n=s[13],o=s[14],p=s[15])).fetchone()
-        school_ids.append(row[0])
+                i=s[8],j=s[9],k=s[10],l=s[11],m=s[12],n=s[13],o=s[14],p=s[15]))
+        school_ids.append(result.lastrowid)
 
     requirement_sets = [
         [("Birth certificate or baptism certificate", True, "Bring original plus one photocopy."),
@@ -98,7 +99,7 @@ def _seed(conn) -> None:
         ("Social Studies P5 Past Paper", "Social Studies", "P5", 2022, "past paper", "1.1 MB", "A lightweight practice paper for primary learners."),
     ]:
         conn.execute(text(
-            "INSERT INTO materials (title,subject,grade,year,type,file_size,preview_text,uploaded_by,approved) "
+            "INSERT INTO materials (title,subject,grade,`year`,type,file_size,preview_text,uploaded_by,approved) "
             "VALUES (:t,:s,:g,:y,:mt,:fs,:pv,:ub,1)"
         ), dict(t=title, s=subject, g=grade, y=year, mt=mtype, fs=size, pv=preview, ub="admin@eduportal.ss"))
 
@@ -117,11 +118,11 @@ def _seed(conn) -> None:
         ("Future South Sudan Trust", "Grace Atong", "contact@futuress.org", "+211 912 200 111", "Supporting secondary learners across South Sudan since 2018."),
         ("Girls in STEM Initiative", "Luka Bullen", "info@girlsinstem.ss", "+211 912 200 112", "Empowering girls to pursue science and technology careers."),
     ]:
-        row = conn.execute(text(
+        result = conn.execute(text(
             "INSERT INTO ngos (org_name,contact,email,phone,description,verified) "
-            "VALUES (:o,:c,:e,:p,:d,1) RETURNING id"
-        ), dict(o=org, c=contact, e=email, p=phone, d=desc)).fetchone()
-        ngo_ids.append(row[0])
+            "VALUES (:o,:c,:e,:p,:d,1)"
+        ), dict(o=org, c=contact, e=email, p=phone, d=desc))
+        ngo_ids.append(result.lastrowid)
 
     for ngo_id, title, desc, elig, deadline, how, docs, link in [
         (ngo_ids[0], "Secondary School Support Grant", "Partial tuition support for secondary learners with strong attendance.", "Grade 9–12, South Sudan resident, not already funded", "2026-07-20", "Complete the online application and attach your latest report card.", "Report card, birth certificate, recommendation letter", "https://futuress.org/apply"),
@@ -133,3 +134,62 @@ def _seed(conn) -> None:
             "how_to_apply,required_docs,external_link,approved) "
             "VALUES (:ni,:t,:d,:e,:dl,:h,:rd,:el,1)"
         ), dict(ni=ngo_id, t=title, d=desc, e=elig, dl=deadline, h=how, rd=docs, el=link))
+
+    _seed_demo_accounts(conn, school_ids[0], ngo_ids[0])
+
+
+def _seed_demo_accounts(conn, sample_school_id: int, sample_ngo_id: int) -> None:
+    """One login per role, all sharing the password below, so every dashboard
+    can be exercised manually without registering fresh accounts each time."""
+    from sqlalchemy import text
+
+    pw = bcrypt.hashpw(b"Demo1234!", bcrypt.gensalt()).decode()
+    accounts = [
+        dict(n="Student Demo", e="student@eduportal.ss", p="+211912300101", r="student",
+             s="Central Equatoria", c="Juba", grade="S4", school_name="Juba Day Secondary School"),
+        dict(n="Parent Demo", e="parent@eduportal.ss", p="+211912300102", r="parent",
+             s="Central Equatoria", c="Juba", child_school="Juba Day Secondary School", child_grade="P6"),
+        dict(n="Teacher Demo", e="teacher@eduportal.ss", p="+211912300103", r="teacher",
+             s="Central Equatoria", c="Juba", subjects="Mathematics, Physics", institution="Juba Day Secondary School"),
+    ]
+    for a in accounts:
+        conn.execute(text(
+            "INSERT INTO users (name,email,phone,password_hash,role,state,county,verified,"
+            "grade,school_name,child_school,child_grade,subjects,institution) "
+            "VALUES (:n,:e,:p,:h,:r,:s,:c,1,:grade,:school_name,:child_school,:child_grade,:subjects,:institution)"
+        ), dict(
+            n=a["n"], e=a["e"], p=a["p"], h=pw, r=a["r"], s=a["s"], c=a["c"],
+            grade=a.get("grade", ""), school_name=a.get("school_name", ""),
+            child_school=a.get("child_school", ""), child_grade=a.get("child_grade", ""),
+            subjects=a.get("subjects", ""), institution=a.get("institution", ""),
+        ))
+
+    # school_admin is scoped to a school via school_id — manages the first seeded school
+    conn.execute(text(
+        "INSERT INTO users (name,email,phone,password_hash,role,state,county,verified,"
+        "managed_school,school_id) VALUES (:n,:e,:p,:h,'school_admin',:s,:c,1,:ms,:sid)"
+    ), dict(n="School Admin Demo", e="schooladmin@eduportal.ss", p="+211912300104",
+            h=pw, s="Central Equatoria", c="Juba", ms="Juba Day Secondary School", sid=sample_school_id))
+
+    # ngo_officer resolves its NGO by matching email/phone against the ngos table,
+    # so this account's email must match the seeded NGO's contact email.
+    ngo_email = conn.execute(text("SELECT email FROM ngos WHERE id=:id"), dict(id=sample_ngo_id)).scalar()
+    conn.execute(text(
+        "INSERT INTO users (name,email,phone,password_hash,role,state,county,verified) "
+        "VALUES (:n,:e,:p,:h,'ngo_officer',:s,:c,1)"
+    ), dict(n="NGO Officer Demo", e=ngo_email, p="+211912200111", h=pw, s="Central Equatoria", c="Juba"))
+
+    # org_publisher resolves its organization through a used invitation record.
+    org_id = conn.execute(text(
+        "SELECT id FROM organizations WHERE name LIKE '%Ministry of General Education%' LIMIT 1"
+    )).scalar()
+    result = conn.execute(text(
+        "INSERT INTO users (name,email,phone,password_hash,role,state,county,verified) "
+        "VALUES (:n,:e,:p,:h,'org_publisher',:s,:c,1)"
+    ), dict(n="Org Publisher Demo", e="orgpublisher@eduportal.ss", p="+211912300105",
+            h=pw, s="Central Equatoria", c="Juba"))
+    if org_id:
+        conn.execute(text(
+            "INSERT INTO invitations (token_hash,token_hint,role,ref_id,email,used) "
+            "VALUES ('seed-unused-hash','seed0000','org_publisher',:oid,:email,1)"
+        ), dict(oid=org_id, email="orgpublisher@eduportal.ss"))

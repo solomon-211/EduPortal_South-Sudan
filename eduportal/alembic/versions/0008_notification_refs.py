@@ -25,16 +25,22 @@ depends_on = None
 
 def upgrade() -> None:
     if not _col_exists("notifications", "ref_type"):
-        op.add_column("notifications", sa.Column("ref_type", sa.Text()))
+        op.add_column("notifications", sa.Column("ref_type", sa.String(50)))
     if not _col_exists("notifications", "ref_id"):
         op.add_column("notifications", sa.Column("ref_id", sa.Integer()))
-    op.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_notif_ref ON notifications(user_id, type, ref_type, ref_id)"
-    ))
+    bind = op.get_bind()
+    if bind.dialect.name == "mysql":
+        op.execute(sa.text("CREATE INDEX idx_notif_ref ON notifications(user_id, type, ref_type, ref_id)"))
+    else:
+        op.execute(sa.text(
+            "CREATE INDEX IF NOT EXISTS idx_notif_ref ON notifications(user_id, type, ref_type, ref_id)"
+        ))
 
 
 def downgrade() -> None:
     bind = op.get_bind()
-    if bind.dialect.name == "postgresql":
-        bind.execute(sa.text("ALTER TABLE notifications DROP COLUMN IF EXISTS ref_type"))
-        bind.execute(sa.text("ALTER TABLE notifications DROP COLUMN IF EXISTS ref_id"))
+    if bind.dialect.name != "sqlite":
+        if _col_exists("notifications", "ref_type"):
+            op.drop_column("notifications", "ref_type")
+        if _col_exists("notifications", "ref_id"):
+            op.drop_column("notifications", "ref_id")

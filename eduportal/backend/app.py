@@ -23,8 +23,8 @@ from jwt_helpers import (
     verify_refresh_token,
 )
 from settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES, ALLOWED_EXTENSIONS, ALLOWED_MATERIAL_EXTS, UPLOAD_FOLDER, MATERIALS_FOLDER, ANNOUNCEMENTS_FOLDER, VAPID_PUBLIC_KEY, GOOGLE_CLIENT_ID
-from db_connection import get_db, close_conn
-from db_queries import count, execute, query_all, query_one
+from db_connection import get_db, close_conn, engine as db_engine
+from db_queries import count, execute, is_mysql, query_all, query_one
 from db_schema import init_db
 import notify_push as push
 from notify_email import send_email, send_verification_email
@@ -117,18 +117,11 @@ def static_files(filename: str):
     if filename == "marketing.js":
         return send_from_directory(str(JS_DIR), "marketing.js", mimetype="text/javascript")
 
-    # JavaScript compatibility
-    if filename in {"app.js", "sidebar.js"}:
-        return send_from_directory(str(JS_DIR), filename)
+    # JavaScript modules
     if filename.startswith("app/"):
         return send_from_directory(str(JS_DIR / "app"), filename[len("app/"):])
     if filename.startswith("navigation/"):
         return send_from_directory(str(JS_DIR / "navigation"), filename[len("navigation/"):])
-    # Backward compatibility for previous modular imports under /static/js/**
-    if filename.startswith("js/app/"):
-        return send_from_directory(str(JS_DIR / "app"), filename[len("js/app/"):])
-    if filename.startswith("js/navigation/"):
-        return send_from_directory(str(JS_DIR / "navigation"), filename[len("js/navigation/"):])
 
     # Uploaded and generated assets
     if filename.startswith("avatars/"):
@@ -299,6 +292,20 @@ def api_login():
         "user": {"id": user["id"], "name": user["name"], "role": user["role"], "state": user["state"]},
     })
 
+def _upsert_email_verification(user_id, token, expires_at):
+    if is_mysql():
+        sql = """INSERT INTO email_verifications (user_id, token, expires_at)
+                 VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                 token=VALUES(token), expires_at=VALUES(expires_at), created_at=CURRENT_TIMESTAMP"""
+    else:
+        sql = """INSERT INTO email_verifications (user_id, token, expires_at)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT (user_id) DO UPDATE SET
+                 token=excluded.token, expires_at=excluded.expires_at, created_at=CURRENT_TIMESTAMP"""
+    execute(sql, (user_id, token, expires_at))
+
+
 @app.route("/api/register", methods=["POST"])
 @limiter.limit("5 per minute")
 def api_register():
@@ -332,13 +339,7 @@ def api_register():
     if needs_verification:
         token = secrets.token_urlsafe(32)
         expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
-        execute(
-            """INSERT INTO email_verifications (user_id, token, expires_at)
-               VALUES (?, ?, ?)
-               ON CONFLICT (user_id) DO UPDATE
-               SET token=EXCLUDED.token, expires_at=EXCLUDED.expires_at, created_at=CURRENT_TIMESTAMP""",
-            (uid, token, expires_at),
-        )
+        _upsert_email_verification(uid, token, expires_at)
         base_url = request.host_url.rstrip("/")
         verify_url = f"{base_url}/api/verify-email?token={token}"
         email_sent = send_verification_email(email, name, verify_url)
@@ -442,13 +443,7 @@ def api_resend_verification():
     if user and int(user.get("verified", 1)) == 0:
         token = secrets.token_urlsafe(32)
         expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
-        execute(
-            """INSERT INTO email_verifications (user_id, token, expires_at)
-               VALUES (?, ?, ?)
-               ON CONFLICT (user_id) DO UPDATE
-               SET token=EXCLUDED.token, expires_at=EXCLUDED.expires_at, created_at=CURRENT_TIMESTAMP""",
-            (user["id"], token, expires_at),
-        )
+        _upsert_email_verification(user["id"], token, expires_at)
         base_url = request.host_url.rstrip("/")
         verify_url = f"{base_url}/api/verify-email?token={token}"
         send_verification_email(email, user["name"], verify_url)
@@ -606,7 +601,7 @@ def api_schools():
     if search:
         sql += " AND (name LIKE ? OR county LIKE ? OR state LIKE ?)"
         t = f"%{search}%"; params.extend([t,t,t])
-    total = count(f"SELECT COUNT(*) AS count FROM ({sql})", tuple(params))  # noqa: S608
+    total = count(f"SELECT COUNT(*) AS count FROM ({sql}) AS t", tuple(params))  # noqa: S608
     sql += f" ORDER BY name LIMIT {per_page} OFFSET {(page-1)*per_page}"
     return jsonify({"items": query_all(sql, tuple(params)), "total": total, "page": page, "per_page": per_page})
 
@@ -677,22 +672,22 @@ def api_materials():
     page     = max(1, int(request.args.get("page","1") or 1))
     per_page = 12
     approved_val = 0 if approved == "0" else 1
-    sql = "SELECT id,title,subject,grade,year,type,file_size,preview_text,file_path,created_at FROM materials WHERE approved=?"
+    sql = "SELECT id,title,subject,grade,`year`,type,file_size,preview_text,file_path,created_at FROM materials WHERE approved=?"
     params: list = [approved_val]
     if subject:  sql += " AND subject=?";  params.append(subject)
     if grade:    sql += " AND grade=?";    params.append(grade)
-    if year:     sql += " AND year=?";     params.append(int(year))
+    if year:     sql += " AND `year`=?";   params.append(int(year))
     if doc_type: sql += " AND type=?";     params.append(doc_type)
     if search:
         sql += " AND (title LIKE ? OR subject LIKE ?)"
         t = f"%{search}%"; params.extend([t,t])
-    total = count(f"SELECT COUNT(*) AS count FROM ({sql})", tuple(params))  # noqa: S608
-    sql += f" ORDER BY year DESC, title ASC LIMIT {per_page} OFFSET {(page-1)*per_page}"
+    total = count(f"SELECT COUNT(*) AS count FROM ({sql}) AS t", tuple(params))  # noqa: S608
+    sql += f" ORDER BY `year` DESC, title ASC LIMIT {per_page} OFFSET {(page-1)*per_page}"
     return jsonify({"items": query_all(sql, tuple(params)), "total": total, "page": page, "per_page": per_page})
 
 @app.route("/api/materials/<int:material_id>")
 def api_material_detail(material_id: int):
-    row = query_one("SELECT id,title,subject,grade,year,type,file_size,preview_text,file_path,created_at FROM materials WHERE id=? AND approved=1", (material_id,))
+    row = query_one("SELECT id,title,subject,grade,`year`,type,file_size,preview_text,file_path,created_at FROM materials WHERE id=? AND approved=1", (material_id,))
     if not row:
         return api_err("Material not found", 404)
     return jsonify({"material": row})
@@ -714,7 +709,7 @@ def api_materials_submit():
     if normalized_type in {"tutorial", "video", "video tutorial"}:
         normalized_type = "tutorial video"
     mid = execute(
-        "INSERT INTO materials (title,subject,grade,year,type,uploaded_by,approved) VALUES (?,?,?,?,?,?,0)",
+        "INSERT INTO materials (title,subject,grade,`year`,type,uploaded_by,approved) VALUES (?,?,?,?,?,?,0)",
         (title, subject, grade, year_value, normalized_type, u["email"] or u["phone"]),
     )
     return jsonify({"message": "Material submitted for review", "id": mid}), 201
@@ -974,12 +969,13 @@ def api_announcements():
     search     = request.args.get("search", "").strip()
     approved   = request.args.get("approved", "1").strip()
     approved_val = 0 if approved == "0" else 1
+    today = datetime.now(timezone.utc).date().isoformat()
     sql = (
         "SELECT id,title,body,source_type,org_type,org_name,org_id,"
         "audience,priority,state,attachment_url,attachment_path,expires_at,created_at "
-        "FROM announcements WHERE approved=? AND (expires_at IS NULL OR expires_at='' OR date(expires_at) >= date('now'))"
+        "FROM announcements WHERE approved=? AND (expires_at IS NULL OR expires_at='' OR date(expires_at) >= date(?))"
     )
-    params: list = [approved_val]
+    params: list = [approved_val, today]
     if source:    sql += " AND source_type=?";                params.append(source)
     if org_type:  sql += " AND org_type=?";                  params.append(org_type)
     if audience:  sql += " AND audience=?";                  params.append(audience)
@@ -1276,7 +1272,7 @@ def api_bookmarks_detailed():
         return {r["id"]: r for r in rows}
 
     schools     = fetch_by_ids("schools",     "id,name,state,county,level,boarding,status,description,enrollment", school_ids)
-    materials   = fetch_by_ids("materials",   "id,title,subject,grade,year,type,file_size,preview_text,file_path", material_ids)
+    materials   = fetch_by_ids("materials",   "id,title,subject,grade,`year`,type,file_size,preview_text,file_path", material_ids)
     scholarship_rows = query_all(
         f"""SELECT s.id,s.title,s.description,s.eligibility,s.deadline,s.how_to_apply,
                    n.org_name AS provider
@@ -1324,10 +1320,10 @@ def api_bookmarks():
         item_id = int(item_id)
     except (ValueError, TypeError):
         return api_err("item_id must be a number")
+    ignore_kw = "INSERT IGNORE" if is_mysql() else "INSERT OR IGNORE"
     execute(
-        """INSERT INTO bookmarks (user_id,item_type,item_id)
-           VALUES (?,?,?)
-           ON CONFLICT (user_id, item_type, item_id) DO NOTHING""",
+        f"""{ignore_kw} INTO bookmarks (user_id,item_type,item_id)
+           VALUES (?,?,?)""",
         (u["id"], item_type, item_id),
     )
     return jsonify({"message": "Saved"})
@@ -1346,7 +1342,7 @@ def api_bookmark_delete(bookmark_id: int):
 @require_role("admin")
 def api_admin_queue():
     mat_items = query_all(
-        "SELECT id,title,subject,grade,year,type FROM materials WHERE approved=0 ORDER BY created_at DESC")
+        "SELECT id,title,subject,grade,`year`,type FROM materials WHERE approved=0 ORDER BY created_at DESC")
     ann_items = query_all(
         "SELECT id,title,body,source_type,audience,expires_at FROM announcements WHERE approved=0 ORDER BY created_at DESC")
     sch_items = query_all(
@@ -1539,13 +1535,15 @@ def api_forgot_password():
     if user:
         import secrets
         token = secrets.token_urlsafe(32)
-        execute(
-            """INSERT INTO password_resets (user_id, token, created_at)
-               VALUES (?,?,CURRENT_TIMESTAMP)
-               ON CONFLICT (user_id)
-               DO UPDATE SET token=EXCLUDED.token, created_at=CURRENT_TIMESTAMP""",
-            (user["id"], token),
-        )
+        if is_mysql():
+            reset_sql = """INSERT INTO password_resets (user_id, token, created_at)
+                           VALUES (?,?,CURRENT_TIMESTAMP)
+                           ON DUPLICATE KEY UPDATE token=VALUES(token), created_at=CURRENT_TIMESTAMP"""
+        else:
+            reset_sql = """INSERT INTO password_resets (user_id, token, created_at)
+                           VALUES (?,?,CURRENT_TIMESTAMP)
+                           ON CONFLICT (user_id) DO UPDATE SET token=excluded.token, created_at=CURRENT_TIMESTAMP"""
+        execute(reset_sql, (user["id"], token))
         # Send via email if available, SMS if not
         email_sent = sms_sent = False
         reset_msg = f"Your EduPortal password reset code is: {token}\n\nThis code expires in 1 hour."
@@ -1607,7 +1605,7 @@ def api_notifications():
     recent_cutoff = (now_utc - timedelta(days=7)).isoformat()
 
     persisted = query_all(
-        "SELECT id,type,title,body,read,created_at FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 30",
+        "SELECT id,type,title,body,`read`,created_at FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 30",
         (u["id"],),
     )
     deadlines = query_all(
@@ -1645,14 +1643,14 @@ def api_notification_mark_read(notif_id: int):
     row = query_one("SELECT id FROM notifications WHERE id=? AND user_id=?", (notif_id, u["id"]))
     if not row:
         return api_err("Notification not found", 404)
-    execute("UPDATE notifications SET read=1 WHERE id=?", (notif_id,))
+    execute("UPDATE notifications SET `read`=1 WHERE id=?", (notif_id,))
     return jsonify({"message": "Marked as read"})
 
 @app.route("/api/notifications/read-all", methods=["POST"])
 @require_auth
 def api_notifications_mark_all_read():
     u = request.current_user  # type: ignore[attr-defined]
-    execute("UPDATE notifications SET read=1 WHERE user_id=? AND read=0", (u["id"],))
+    execute("UPDATE notifications SET `read`=1 WHERE user_id=? AND `read`=0", (u["id"],))
     return jsonify({"message": "All notifications marked as read"})
 
 @app.route("/api/notifications/stream")
@@ -1709,12 +1707,15 @@ def api_push_subscribe():
     auth_key = (keys.get("auth") or "").strip()
     if not endpoint or not p256dh or not auth_key:
         return api_err("endpoint and keys.p256dh/keys.auth are required")
-    execute(
-        """INSERT INTO push_subscriptions (user_id,endpoint,p256dh,auth) VALUES (?,?,?,?)
-           ON CONFLICT (endpoint) DO UPDATE
-           SET user_id=EXCLUDED.user_id, p256dh=EXCLUDED.p256dh, auth=EXCLUDED.auth""",
-        (u["id"], endpoint, p256dh, auth_key),
-    )
+    if is_mysql():
+        push_sql = """INSERT INTO push_subscriptions (user_id,endpoint,p256dh,auth) VALUES (?,?,?,?)
+                      ON DUPLICATE KEY UPDATE
+                      user_id=VALUES(user_id), p256dh=VALUES(p256dh), auth=VALUES(auth)"""
+    else:
+        push_sql = """INSERT INTO push_subscriptions (user_id,endpoint,p256dh,auth) VALUES (?,?,?,?)
+                      ON CONFLICT (endpoint) DO UPDATE SET
+                      user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth"""
+    execute(push_sql, (u["id"], endpoint, p256dh, auth_key))
     return jsonify({"message": "Subscribed to push notifications"})
 
 @app.route("/api/push/unsubscribe", methods=["POST"])
@@ -2008,7 +2009,7 @@ def api_my_school():
         (u["school_id"],),
     )
     materials = query_all(
-        "SELECT id,title,subject,grade,year,type,file_size,approved,created_at FROM materials "
+        "SELECT id,title,subject,grade,`year`,type,file_size,approved,created_at FROM materials "
         "WHERE uploaded_by=? ORDER BY created_at DESC",
         (u["email"] or u["phone"],),
     )
@@ -2128,10 +2129,10 @@ def healthz():
         from sqlalchemy import text
         with get_db() as conn:
             conn.execute(text("SELECT 1"))
-        return jsonify({"status": "ok", "database": {"engine": "postgres", "connected": True}})
+        return jsonify({"status": "ok", "database": {"engine": db_engine.dialect.name, "connected": True}})
     except Exception as exc:
         log.error("Health check DB error: %s", exc)
-        return jsonify({"status": "degraded", "database": {"engine": "postgres", "connected": False}}), 503
+        return jsonify({"status": "degraded", "database": {"engine": db_engine.dialect.name, "connected": False}}), 503
 
 
 @app.errorhandler(404)

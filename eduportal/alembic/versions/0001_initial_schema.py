@@ -7,7 +7,6 @@ Create Date: 2025-01-01 00:00:00.000000
 from __future__ import annotations
 
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "0001"
 down_revision = None
@@ -16,76 +15,80 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("""
+    bind = op.get_bind()
+    pk = "INT AUTO_INCREMENT PRIMARY KEY" if bind.dialect.name == "mysql" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS users (
-            id               SERIAL PRIMARY KEY,
+            id               {pk},
             name             TEXT NOT NULL,
-            email            TEXT UNIQUE,
-            phone            TEXT UNIQUE,
+            email            VARCHAR(255) UNIQUE,
+            phone            VARCHAR(30) UNIQUE,
             password_hash    TEXT NOT NULL,
-            role             TEXT NOT NULL DEFAULT 'student',
-            state            TEXT NOT NULL DEFAULT '',
-            county           TEXT NOT NULL DEFAULT '',
+            role             VARCHAR(20) NOT NULL DEFAULT 'student',
+            state            VARCHAR(100) NOT NULL DEFAULT '',
+            county           VARCHAR(100) NOT NULL DEFAULT '',
             verified         INTEGER NOT NULL DEFAULT 1,
             notify_email     INTEGER NOT NULL DEFAULT 1,
             notify_sms       INTEGER NOT NULL DEFAULT 1,
             notify_inapp     INTEGER NOT NULL DEFAULT 1,
-            avatar           TEXT DEFAULT NULL,
-            grade            TEXT DEFAULT '',
-            school_name      TEXT DEFAULT '',
-            child_school     TEXT DEFAULT '',
-            child_grade      TEXT DEFAULT '',
-            subjects         TEXT DEFAULT '',
-            institution      TEXT DEFAULT '',
+            avatar           TEXT,
+            grade            VARCHAR(50) DEFAULT '',
+            school_name      VARCHAR(200) DEFAULT '',
+            child_school     VARCHAR(200) DEFAULT '',
+            child_grade      VARCHAR(50) DEFAULT '',
+            subjects         VARCHAR(300) DEFAULT '',
+            institution      VARCHAR(200) DEFAULT '',
             experience_years INTEGER DEFAULT NULL,
-            managed_school   TEXT DEFAULT '',
-            position         TEXT DEFAULT '',
+            managed_school   VARCHAR(200) DEFAULT '',
+            position         VARCHAR(100) DEFAULT '',
             school_id        INTEGER DEFAULT NULL,
             created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS schools (
-            id           SERIAL PRIMARY KEY,
-            name         TEXT NOT NULL,
-            state        TEXT NOT NULL,
+            id           {pk},
+            name         VARCHAR(200) NOT NULL,
+            state        VARCHAR(100) NOT NULL,
             county       TEXT NOT NULL,
-            level        TEXT NOT NULL,
-            type         TEXT NOT NULL DEFAULT 'mixed',
-            curriculum   TEXT NOT NULL DEFAULT 'National',
-            contact_name TEXT NOT NULL DEFAULT '',
-            phone        TEXT NOT NULL DEFAULT '',
+            level        VARCHAR(50) NOT NULL,
+            type         VARCHAR(50) NOT NULL DEFAULT 'mixed',
+            curriculum   VARCHAR(100) NOT NULL DEFAULT 'National',
+            contact_name VARCHAR(100) NOT NULL DEFAULT '',
+            phone        VARCHAR(30) NOT NULL DEFAULT '',
             email        TEXT,
             capacity     INTEGER,
-            status       TEXT NOT NULL DEFAULT 'open',
+            status       VARCHAR(30) NOT NULL DEFAULT 'open',
             enrollment   INTEGER DEFAULT 0,
-            language     TEXT DEFAULT 'English',
-            boarding     TEXT DEFAULT 'Day',
+            language     VARCHAR(50) DEFAULT 'English',
+            boarding     VARCHAR(30) DEFAULT 'Day',
             hours        TEXT,
             description  TEXT,
             created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS admission_requirements (
-            id          SERIAL PRIMARY KEY,
-            school_id   INTEGER NOT NULL REFERENCES schools(id),
+            id          {pk},
+            school_id   INTEGER NOT NULL,
             item_label  TEXT NOT NULL,
             is_required INTEGER NOT NULL DEFAULT 1,
-            notes       TEXT
+            notes       TEXT,
+            FOREIGN KEY (school_id) REFERENCES schools(id)
         )
     """)
 
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS materials (
-            id           SERIAL PRIMARY KEY,
+            id           {pk},
             title        TEXT NOT NULL,
-            subject      TEXT NOT NULL,
-            grade        TEXT NOT NULL,
-            year         INTEGER NOT NULL,
-            type         TEXT NOT NULL,
+            subject      VARCHAR(100) NOT NULL,
+            grade        VARCHAR(50) NOT NULL,
+            `year`       INTEGER NOT NULL,
+            type         VARCHAR(50) NOT NULL,
             file_size    TEXT,
             preview_text TEXT,
             file_path    TEXT,
@@ -95,9 +98,9 @@ def upgrade() -> None:
         )
     """)
 
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS announcements (
-            id          SERIAL PRIMARY KEY,
+            id          {pk},
             title       TEXT NOT NULL,
             body        TEXT NOT NULL,
             source_type TEXT NOT NULL,
@@ -109,9 +112,9 @@ def upgrade() -> None:
         )
     """)
 
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS ngos (
-            id          SERIAL PRIMARY KEY,
+            id          {pk},
             org_name    TEXT NOT NULL,
             contact     TEXT NOT NULL,
             email       TEXT,
@@ -121,49 +124,52 @@ def upgrade() -> None:
         )
     """)
 
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS scholarships (
-            id            SERIAL PRIMARY KEY,
-            ngo_id        INTEGER REFERENCES ngos(id),
+            id            {pk},
+            ngo_id        INTEGER,
             title         TEXT NOT NULL,
             description   TEXT NOT NULL,
-            eligibility   TEXT NOT NULL DEFAULT '',
-            deadline      TEXT NOT NULL,
-            how_to_apply  TEXT NOT NULL DEFAULT '',
+            eligibility   TEXT NOT NULL,
+            deadline      VARCHAR(20) NOT NULL,
+            how_to_apply  TEXT NOT NULL,
             required_docs TEXT,
             external_link TEXT,
             approved      INTEGER NOT NULL DEFAULT 0,
-            created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (ngo_id) REFERENCES ngos(id)
         )
     """)
 
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS applications (
-            id             SERIAL PRIMARY KEY,
-            user_id        INTEGER NOT NULL REFERENCES users(id),
-            scholarship_id INTEGER NOT NULL REFERENCES scholarships(id),
-            status         TEXT NOT NULL DEFAULT 'submitted',
+            id             {pk},
+            user_id        INTEGER NOT NULL,
+            scholarship_id INTEGER NOT NULL,
+            status         VARCHAR(30) NOT NULL DEFAULT 'submitted',
             note           TEXT,
             applied_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE (user_id, scholarship_id)
+            UNIQUE (user_id, scholarship_id),
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (scholarship_id) REFERENCES scholarships(id)
         )
     """)
 
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS bookmarks (
-            id        SERIAL PRIMARY KEY,
+            id        {pk},
             user_id   INTEGER NOT NULL,
-            item_type TEXT NOT NULL,
+            item_type VARCHAR(20) NOT NULL,
             item_id   INTEGER NOT NULL,
             saved_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (user_id, item_type, item_id)
         )
     """)
 
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS audit_log (
-            id          SERIAL PRIMARY KEY,
+            id          {pk},
             admin_id    INTEGER,
             action      TEXT NOT NULL,
             target_type TEXT NOT NULL,
@@ -175,16 +181,17 @@ def upgrade() -> None:
 
     op.execute("""
         CREATE TABLE IF NOT EXISTS password_resets (
-            user_id    INTEGER PRIMARY KEY REFERENCES users(id),
+            user_id    INTEGER PRIMARY KEY,
             token      TEXT NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
 
-    op.execute("""
+    op.execute(f"""
         CREATE TABLE IF NOT EXISTS invitations (
-            id         SERIAL PRIMARY KEY,
-            token      TEXT NOT NULL UNIQUE,
+            id         {pk},
+            token      TEXT,
             role       TEXT NOT NULL,
             ref_id     INTEGER,
             email      TEXT NOT NULL,
@@ -195,20 +202,29 @@ def upgrade() -> None:
 
     op.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
-            filename   TEXT PRIMARY KEY,
+            filename   VARCHAR(255) PRIMARY KEY,
             applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
-    # Indexes
-    op.execute("CREATE INDEX IF NOT EXISTS idx_users_email           ON users(email)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_users_phone           ON users(phone)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_schools_state         ON schools(state)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_apps_user             ON applications(user_id)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_apps_sch              ON applications(scholarship_id)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_bookmarks_user        ON bookmarks(user_id)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_materials_approved    ON materials(approved)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_scholarships_approved ON scholarships(approved)")
+    # Indexes — MySQL has no CREATE INDEX IF NOT EXISTS, but Alembic already
+    # guarantees this migration runs at most once per database, so a plain
+    # CREATE INDEX is safe there.
+    indexes = [
+        ("idx_users_email",           "users",        "email"),
+        ("idx_users_phone",           "users",        "phone"),
+        ("idx_schools_state",         "schools",      "state"),
+        ("idx_apps_user",             "applications", "user_id"),
+        ("idx_apps_sch",              "applications", "scholarship_id"),
+        ("idx_bookmarks_user",        "bookmarks",    "user_id"),
+        ("idx_materials_approved",    "materials",    "approved"),
+        ("idx_scholarships_approved", "scholarships", "approved"),
+    ]
+    for name, table, cols in indexes:
+        if bind.dialect.name == "mysql":
+            op.execute(f"CREATE INDEX {name} ON {table}({cols})")
+        else:
+            op.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {table}({cols})")
 
 
 def downgrade() -> None:
@@ -217,4 +233,4 @@ def downgrade() -> None:
         "bookmarks", "applications", "scholarships", "ngos",
         "announcements", "materials", "admission_requirements", "schools", "users",
     ]:
-        op.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE")
+        op.execute(f"DROP TABLE IF EXISTS {tbl}")

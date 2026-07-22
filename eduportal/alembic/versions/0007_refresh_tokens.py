@@ -16,24 +16,28 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(sa.text("""
+    bind = op.get_bind()
+    pk = "INT AUTO_INCREMENT PRIMARY KEY" if bind.dialect.name == "mysql" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+
+    op.execute(sa.text(f"""
         CREATE TABLE IF NOT EXISTS refresh_tokens (
-            id         SERIAL PRIMARY KEY,
-            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            id         {pk},
+            user_id    INTEGER NOT NULL,
             token_hash TEXT NOT NULL,
-            token_hint TEXT NOT NULL,
+            token_hint VARCHAR(16) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             expires_at TIMESTAMP NOT NULL,
-            revoked_at TIMESTAMP
+            revoked_at TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """))
-    op.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_refresh_hint ON refresh_tokens(token_hint)"
-    ))
-    op.execute(sa.text(
-        "CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id)"
-    ))
+    if bind.dialect.name == "mysql":
+        op.execute(sa.text("CREATE INDEX idx_refresh_hint ON refresh_tokens(token_hint)"))
+        op.execute(sa.text("CREATE INDEX idx_refresh_user ON refresh_tokens(user_id)"))
+    else:
+        op.execute(sa.text("CREATE INDEX IF NOT EXISTS idx_refresh_hint ON refresh_tokens(token_hint)"))
+        op.execute(sa.text("CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id)"))
 
 
 def downgrade() -> None:
-    op.execute(sa.text("DROP TABLE IF EXISTS refresh_tokens CASCADE"))
+    op.execute(sa.text("DROP TABLE IF EXISTS refresh_tokens"))

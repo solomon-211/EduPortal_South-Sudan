@@ -5,7 +5,7 @@ Run from eduportal/:
     pytest backend/test_regression.py -v
 
 Uses an in-memory SQLite database via SQLAlchemy so no external
-PostgreSQL server is required for CI or local test runs.
+MySQL server is required for CI or local test runs.
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ from sqlalchemy import text
 
 def _apply_schema() -> None:
     """Apply the initial schema to the in-memory SQLite DB."""
-    # Use a minimal SQLite-compatible schema (no SERIAL, no DO $$...$$)
+    # Minimal SQLite-native schema, independent of the Alembic/MySQL migrations
     ddl = """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -817,12 +817,12 @@ class TestNotifications:
             ).fetchone()[0]
             sid = conn.execute(text(
                 "INSERT INTO scholarships (title,description,deadline,approved) "
-                "VALUES ('Notif Test Scholarship','desc','2099-01-01',1) RETURNING id"
-            )).fetchone()[0]
+                "VALUES ('Notif Test Scholarship','desc','2099-01-01',1)"
+            )).lastrowid
             app_id = conn.execute(text(
                 "INSERT INTO applications (user_id,scholarship_id,status) "
-                "VALUES (:u,:s,'submitted') RETURNING id"
-            ), {"u": uid, "s": sid}).fetchone()[0]
+                "VALUES (:u,:s,'submitted')"
+            ), {"u": uid, "s": sid}).lastrowid
             conn.commit()
         return app_id
 

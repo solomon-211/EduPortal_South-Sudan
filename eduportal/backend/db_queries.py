@@ -1,6 +1,10 @@
 from sqlalchemy import text
 
-from db_connection import get_conn
+from db_connection import get_conn, engine
+
+
+def is_mysql():
+    return engine.dialect.name == "mysql"
 
 
 def query_all(sql, params=()):
@@ -19,17 +23,16 @@ def query_one(sql, params=()):
 def execute(sql, params=()):
     sql_upper = sql.lstrip().upper()
     is_insert = sql_upper.startswith("INSERT")
-    is_upsert = "ON CONFLICT" in sql_upper and "DO UPDATE" in sql_upper
-    if is_insert and not is_upsert:
-        base = sql.rstrip().rstrip(";")
-        if "RETURNING" not in base.upper():
-            base += " RETURNING id"
-        bound_sql, bound_params = _bind(base, params)
-        result = get_conn().execute(text(bound_sql), bound_params)
-        row = result.fetchone()
-        return int(row[0]) if row else 0
+    is_upsert = (
+        "ON DUPLICATE KEY UPDATE" in sql_upper
+        or "ON CONFLICT" in sql_upper
+        or sql_upper.startswith("INSERT IGNORE")
+        or sql_upper.startswith("INSERT OR IGNORE")
+    )
     bound_sql, bound_params = _bind(sql, params)
-    get_conn().execute(text(bound_sql), bound_params)
+    result = get_conn().execute(text(bound_sql), bound_params)
+    if is_insert and not is_upsert:
+        return int(result.lastrowid or 0)
     return 0
 
 

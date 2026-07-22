@@ -2613,8 +2613,8 @@
     if (page === 'ngo-dashboard')    initNGODashboard();
   }
 
-  // main.js is loaded via a dynamic script tag from /static/app.js.
-  // If DOMContentLoaded already fired, run immediately.
+  // Pages load this with `defer`, but guard against it running after
+  // DOMContentLoaded already fired (e.g. late injection during testing).
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootApp);
   } else {

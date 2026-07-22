@@ -5,7 +5,10 @@ Revises: 0004
 Create Date: 2025-01-05 00:00:00.000000
 """
 from __future__ import annotations
+
 from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.engine import reflection
 
 revision: str = "0005"
 down_revision = "0004"
@@ -13,20 +16,18 @@ branch_labels = None
 depends_on = None
 
 
+def _col_exists(table: str, col: str) -> bool:
+    bind = op.get_bind()
+    insp = reflection.Inspector.from_engine(bind)
+    return any(c["name"] == col for c in insp.get_columns(table))
+
+
 def upgrade() -> None:
-    # Add attachment_path column to store uploaded file paths
-    op.execute("""
-        DO $$ BEGIN
-            ALTER TABLE announcements ADD COLUMN attachment_path TEXT;
-        EXCEPTION WHEN duplicate_column THEN NULL;
-        END $$;
-    """)
+    if not _col_exists("announcements", "attachment_path"):
+        op.add_column("announcements", sa.Column("attachment_path", sa.Text()))
 
 
 def downgrade() -> None:
-    op.execute("""
-        DO $$ BEGIN
-            ALTER TABLE announcements DROP COLUMN attachment_path;
-        EXCEPTION WHEN undefined_column THEN NULL;
-        END $$;
-    """)
+    bind = op.get_bind()
+    if bind.dialect.name != "sqlite" and _col_exists("announcements", "attachment_path"):
+        op.drop_column("announcements", "attachment_path")

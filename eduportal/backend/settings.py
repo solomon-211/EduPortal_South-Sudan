@@ -25,14 +25,13 @@ ANNOUNCEMENTS_FOLDER = ASSETS_DIR / "announcements"
 def _build_database_url():
     url = os.environ.get("DATABASE_URL", "").strip()
     if url:
-        return url.replace("postgres://", "postgresql://", 1)
-    host = os.environ.get("POSTGRES_HOST", "localhost").strip()
-    port = os.environ.get("POSTGRES_PORT", "5432").strip()
-    user = os.environ.get("POSTGRES_USER", "").strip()
-    password = os.environ.get("POSTGRES_PASSWORD", "").strip()
-    dbname = os.environ.get("POSTGRES_DATABASE", "").strip()
-    sslmode = os.environ.get("POSTGRES_SSLMODE", "prefer").strip() or "prefer"
-    return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}"
+        return url
+    host = os.environ.get("MYSQL_HOST", "localhost").strip()
+    port = os.environ.get("MYSQL_PORT", "3306").strip()
+    user = os.environ.get("MYSQL_USER", "").strip()
+    password = os.environ.get("MYSQL_PASSWORD", "").strip()
+    dbname = os.environ.get("MYSQL_DATABASE", "").strip()
+    return f"mysql+pymysql://{user}:{password}@{host}:{port}/{dbname}?charset=utf8mb4"
 
 
 DATABASE_URL = _build_database_url()
