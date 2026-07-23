@@ -2871,7 +2871,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 /* Top-bar notification bell */
 .top-notification-wrapper { position: relative; display: inline-flex; align-items: center; }
 .top-notification-trigger {
-  width: 38px; height: 38px;
+  width: 44px; height: 44px;
   border: 1.5px solid rgba(91,15,15,0.12);
   border-radius: 50%;
   background: #fff;
@@ -2907,7 +2907,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* Account trigger button */
 .account-trigger {
-  width: 38px; height: 38px;
+  width: 44px; height: 44px;
   border-radius: 50%;
   border: 0;
   background: linear-gradient(135deg, var(--maroon-dark), var(--maroon));
@@ -4085,3 +4085,38 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   margin-top: 0.3rem !important;
 }
 
+
+
+/* Empty-state treatment (added for visual polish pass) — wins the cascade
+   over any earlier .empty-text rule in this file since it is appended last. */
+.empty-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-height: 200px;
+  margin: 0;
+  padding: 2.25rem 1.25rem;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.empty-text::before {
+  content: '';
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background-color: var(--maroon-light);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f1d1d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12h4l2 3h4l2-3h4'/%3E%3Cpath d='M5.5 5h13L21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6L5.5 5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 20px 20px;
+}
+
+/* .content-grid defaults to align-items: stretch, which forces a shorter card
+   to match the height of a taller sibling in the same row and leaves a dead
+   gap under its own content. Top-align instead so each card hugs its content. */
+.content-grid { align-items: start; }

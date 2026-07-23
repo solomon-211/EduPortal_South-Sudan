@@ -24,35 +24,37 @@
     admin:            'shield-check',
     'school-dashboard': 'building-2',
     'ngo-dashboard':    'heart-handshake',
+    'org-dashboard':    'landmark',
     logout:           'log-out',
     signin:           'log-in',
   };
 
-  // Nav structure with role permissions
-  var ALL  = ['student','parent','teacher','school_admin','ngo_officer','admin'];
-  var MOST = ['student','parent','teacher','school_admin','ngo_officer','admin'];
+  // Every account role that isn't admin — admin sees every item regardless
+  // (see the visibility filter below), so this only needs the other six.
+  var EVERYONE = ['student','parent','teacher','school_admin','ngo_officer','org_publisher'];
 
   var groups = [
     { label: 'START HERE', items: [
-      { href: '/dashboard',   label: 'Dashboard',            key: 'dashboard',     roles: ALL },
-      { href: '/directory',   label: 'Explore Institutions', key: 'directory',     roles: MOST },
+      { href: '/dashboard',   label: 'Dashboard',            key: 'dashboard',     roles: EVERYONE },
+      { href: '/directory',   label: 'Explore Institutions', key: 'directory',     roles: EVERYONE },
     ]},
     { label: 'LEARN', items: [
-      { href: '/materials',   label: 'Learning Resources',   key: 'materials',     roles: ['student','parent','teacher','school_admin','admin'] },
+      { href: '/materials',   label: 'Learning Resources',   key: 'materials',     roles: ['student','parent','teacher','school_admin'] },
     ]},
     { label: 'APPLY', items: [
-      { href: '/opportunities',   label: 'Scholarships',     key: 'scholarships',  roles: MOST },
-      { href: '/announcements',   label: 'Announcements',    key: 'announcements', roles: MOST },
+      { href: '/opportunities',   label: 'Scholarships',     key: 'scholarships',  roles: EVERYONE },
+      { href: '/announcements',   label: 'Announcements',    key: 'announcements', roles: EVERYONE },
     ]},
     { label: 'MANAGE', items: [
-      { href: '/school-dashboard', label: 'School Dashboard', key: 'school-dashboard', roles: ['school_admin'] },
-      { href: '/ngo-dashboard',    label: 'NGO Dashboard',    key: 'ngo-dashboard',    roles: ['ngo_officer'] },
+      { href: '/school-dashboard', label: 'School Dashboard',        key: 'school-dashboard', roles: ['school_admin'] },
+      { href: '/ngo-dashboard',    label: 'NGO Dashboard',           key: 'ngo-dashboard',    roles: ['ngo_officer'] },
+      { href: '/org-dashboard',    label: 'Organization Dashboard',  key: 'org-dashboard',    roles: ['org_publisher'] },
     ]},
     { label: 'ACCOUNT', items: [
       { href: '/my-applications', label: 'My Applications',  key: 'applications',  roles: ['student','parent'] },
-      { href: '/bookmarks',       label: 'My Bookmarks',     key: 'bookmarks',     roles: ['student','parent','teacher','school_admin','ngo_officer'] },
-      { href: '/profile',         label: 'My Profile',       key: 'profile',       roles: ALL },
-      { href: '/settings',        label: 'Settings',         key: 'settings',      roles: ALL },
+      { href: '/bookmarks',       label: 'My Bookmarks',     key: 'bookmarks',     roles: EVERYONE },
+      { href: '/profile',         label: 'My Profile',       key: 'profile',       roles: EVERYONE },
+      { href: '/settings',        label: 'Settings',         key: 'settings',      roles: EVERYONE },
     ]},
   ];
 

@@ -24,7 +24,7 @@
   // Helpers
 
   function token() {
-    return localStorage.getItem('token') || '';
+    return localStorage.getItem('eduportal_token') || '';
   }
 
   function authHeaders() {
@@ -223,7 +223,7 @@
 
   function init() {
     // Show post form for authorised roles
-    const stored = localStorage.getItem('user');
+    const stored = localStorage.getItem('eduportal_user');
     if (stored) {
       try {
         const user = JSON.parse(stored);

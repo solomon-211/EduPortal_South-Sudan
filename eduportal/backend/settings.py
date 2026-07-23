@@ -21,6 +21,9 @@ UPLOAD_FOLDER = ASSETS_DIR / "avatars"
 MATERIALS_FOLDER = ASSETS_DIR / "materials"
 ANNOUNCEMENTS_FOLDER = ASSETS_DIR / "announcements"
 
+BACKUP_DIR = BASE_DIR / "backups"
+BACKUP_RETENTION_DAYS = int(os.environ.get("BACKUP_RETENTION_DAYS", "14"))
+
 
 def _build_database_url():
     url = os.environ.get("DATABASE_URL", "").strip()

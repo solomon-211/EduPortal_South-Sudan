@@ -125,7 +125,7 @@ button, input { font: inherit; }
   z-index: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: center;
   height: 100%;
   padding: 2.4rem 2.8rem;
   color: white;
@@ -217,7 +217,7 @@ button, input { font: inherit; }
   flex-direction: column;
   justify-content: center;
   background: #fffcf9;
-  padding: 1.8rem 2.5rem;
+  padding: 0.8rem 2.5rem;
 }
 .right-panel::-webkit-scrollbar { display: none; }
 
@@ -230,7 +230,7 @@ button, input { font: inherit; }
   display: inline-flex;
   align-items: center;
   gap: 0.75rem;
-  margin-bottom: 1.4rem;
+  margin-bottom: 0.9rem;
   text-decoration: none;
 }
 .brand-logo { width: 2.6rem; height: 2.6rem; }
@@ -248,13 +248,13 @@ button, input { font: inherit; }
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.4rem;
+  margin-bottom: 0.7rem;
 }
 .auth-card-header h2 {
   margin: 0 0 0.3rem;
   font-family: var(--font-display);
-  font-size: 1.85rem;
-  line-height: 1.05;
+  font-size: 1.65rem;
+  line-height: 1.1;
   color: var(--maroon-dark);
   letter-spacing: -0.02em;
 }
@@ -342,7 +342,7 @@ button, input { font: inherit; }
   width: 100%;
   border: 1.5px solid rgba(91,15,15,0.12);
   border-radius: 12px;
-  padding: 0.88rem 1rem;
+  padding: 0.72rem 1rem;
   background: #fdfaf8;
   color: var(--ink);
   font: inherit;
@@ -360,12 +360,12 @@ button, input { font: inherit; }
 .field select option { color: var(--ink); }
 
 /* Google Sign-In + divider */
-.g_id_signin { margin: 1.1rem 0 0.9rem; display: flex; justify-content: center; }
+.g_id_signin { margin: 0.55rem 0 0.5rem; display: flex; justify-content: center; }
 .auth-divider {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 0 0 1.1rem;
+  margin: 0 0 0.65rem;
   color: var(--muted);
   font-size: 0.8rem;
 }
@@ -378,9 +378,9 @@ button, input { font: inherit; }
 }
 
 /* Form */
-.auth-form { display: grid; gap: 0.85rem; }
+.auth-form { display: grid; gap: 0.65rem; }
 
-.field { display: grid; gap: 0.45rem; }
+.field { display: grid; gap: 0.35rem; }
 .field > span {
   font-size: 0.82rem;
   font-weight: 700;
@@ -485,8 +485,8 @@ button, input { font: inherit; }
   justify-content: center;
   gap: 0.55rem;
   width: 100%;
-  padding: 0.85rem 1.2rem;
-  margin-top: 0.3rem;
+  padding: 0.72rem 1.2rem;
+  margin-top: 0.15rem;
   border: 0;
   border-radius: var(--radius-sm);
   background: linear-gradient(135deg, var(--maroon-dark) 0%, #9e2020 55%, #b83a18 100%);
@@ -696,14 +696,6 @@ input:focus { outline: none; }
 .u-list-copy { color: #888; font-size: 0.88rem; }
 .u-list-copy-sm { color: #888; font-size: 0.84rem; }
 .u-list-copy-xs { color: #888; font-size: 0.78rem; }
-
-.auth-footer {
-  margin-top: 0.9rem;
-  font-size: 0.76rem;
-  color: var(--muted);
-  text-align: center;
-  line-height: 1.65;
-}
 
 
 
@@ -2889,7 +2881,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 /* Top-bar notification bell */
 .top-notification-wrapper { position: relative; display: inline-flex; align-items: center; }
 .top-notification-trigger {
-  width: 38px; height: 38px;
+  width: 44px; height: 44px;
   border: 1.5px solid rgba(91,15,15,0.12);
   border-radius: 50%;
   background: #fff;
@@ -2925,7 +2917,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* Account trigger button */
 .account-trigger {
-  width: 38px; height: 38px;
+  width: 44px; height: 44px;
   border-radius: 50%;
   border: 0;
   background: linear-gradient(135deg, var(--maroon-dark), var(--maroon));
@@ -3486,31 +3478,6 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   color: var(--orange);
 }
 
-/* Trust badge row */
-.auth-trust-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin: 1.2rem 0 0.6rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(91,15,15,0.07);
-}
-
-.auth-trust-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(143,29,29,0.05);
-  border: 1px solid rgba(91,15,15,0.09);
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--muted);
-}
-.auth-trust-badge svg { flex-shrink: 0; color: var(--maroon); opacity: 0.7; }
 .recovery-note { margin-top: -0.2rem; }
 
 /* Register: section labels */
@@ -3660,8 +3627,6 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   .lp-feature-cards { grid-template-columns: 1fr; }
   .lp-feature-card:last-child { grid-column: auto; }
   .lp-slogan { display: none; }
-  .auth-trust-row { gap: 0.4rem; }
-  .auth-trust-badge { font-size: 0.7rem; padding: 0.3rem 0.6rem; }
 }
 
 
@@ -3682,8 +3647,13 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   left: 0;
   width: 268px;
   height: 100vh;
-  overflow: hidden;
-  background: linear-gradient(175deg, #3b0a0a 0%, #5c1010 30%, #7a1a0a 65%, #4a1a08 100%);`r`n  border-right: none;`r`n  padding: 1.5rem 1.2rem 1.5rem;`r`n  display: flex;`r`n  flex-direction: column;`r`n  z-index: 100;`r`n  box-shadow: 3px 0 32px rgba(58,10,10,0.45);
+  background: linear-gradient(175deg, #3b0a0a 0%, #5c1010 30%, #7a1a0a 65%, #4a1a08 100%);
+  border-right: none;
+  padding: 1.5rem 1.2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  box-shadow: 3px 0 32px rgba(58,10,10,0.45);
 }
 .sidebar::before {
   content: '';
@@ -4097,3 +4067,38 @@ textarea.field-input { resize: vertical; min-height: 80px; }
   margin-top: 0.3rem !important;
 }
 
+
+
+/* Empty-state treatment (added for visual polish pass) — wins the cascade
+   over any earlier .empty-text rule in this file since it is appended last. */
+.empty-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-height: 200px;
+  margin: 0;
+  padding: 2.25rem 1.25rem;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.empty-text::before {
+  content: '';
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background-color: var(--maroon-light);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f1d1d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12h4l2 3h4l2-3h4'/%3E%3Cpath d='M5.5 5h13L21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6L5.5 5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 20px 20px;
+}
+
+/* .content-grid defaults to align-items: stretch, which forces a shorter card
+   to match the height of a taller sibling in the same row and leaves a dead
+   gap under its own content. Top-align instead so each card hugs its content. */
+.content-grid { align-items: start; }

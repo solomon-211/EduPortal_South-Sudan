@@ -106,8 +106,8 @@
       const res = await fetch('/api/stats');
       if (!res.ok) return;
       const { schools, scholarships, states } = await res.json();
-      document.querySelectorAll('[data-stat="schools"]').forEach(el => { el.textContent = schools + '+'; });
-      document.querySelectorAll('[data-stat="scholarships"]').forEach(el => { el.textContent = scholarships + '+'; });
+      document.querySelectorAll('[data-stat="schools"]').forEach(el => { el.textContent = schools > 0 ? schools + '+' : schools; });
+      document.querySelectorAll('[data-stat="scholarships"]').forEach(el => { el.textContent = scholarships > 0 ? scholarships + '+' : scholarships; });
       document.querySelectorAll('[data-stat="states"]').forEach(el => { el.textContent = states; });
     } catch (_) {}
   }

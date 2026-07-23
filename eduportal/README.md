@@ -89,10 +89,12 @@ Copy-Item .env.example .env
 python backend\app.py
 ```
 
-On first run, `python backend\app.py` applies every Alembic migration and, if
-the database is empty, seeds it with demo schools, materials, announcements,
-NGOs, scholarships, and one login per role (see **Demo accounts** below). Open
-`http://127.0.0.1:5000/`.
+On first run, `python backend\app.py` applies every Alembic migration and
+creates one platform admin account if none exists yet (`ADMIN_EMAIL` /
+`ADMIN_PASSWORD` in `.env`, defaulting to `admin@eduportal.ss` /
+`Admin1234!`). Everything else starts empty — your own schools, materials,
+announcements, and users are the only data in the system unless you opt into
+demo content (see **Demo accounts** below). Open `http://127.0.0.1:5000/`.
 
 ## Environment variables
 
@@ -164,8 +166,12 @@ column names and types. It's kept as a design reference; the live schema in
 
 ## Demo accounts
 
-The seed data (loaded automatically into an empty database) includes one
-working login per role, all sharing the password `Demo1234!`:
+By default the database starts clean — no sample schools, materials, or
+demo logins, so your own data is the only data. To load a realistic demo
+dataset (useful for local development, never for production), set
+`SEED_DEMO_DATA=true` in `.env` before the first run against an empty
+database. That gives you one working login per role, all sharing the
+password `Demo1234!`:
 
 | Role | Email |
 |---|---|
@@ -239,7 +245,8 @@ deploy that way.
 
 ## Main URLs
 
-- `/` — home / login
+- `/` — marketing home page
+- `/login` — sign in
 - `/register` — two-step registration
 - `/dashboard` — role-aware dashboard
 - `/directory` — school directory

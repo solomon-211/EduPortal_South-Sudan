@@ -79,6 +79,7 @@ def _apply_schema() -> None:
             enrollment INTEGER DEFAULT 0,
             language TEXT DEFAULT 'English',
             boarding TEXT DEFAULT 'Day',
+            ownership TEXT NOT NULL DEFAULT 'public',
             hours TEXT,
             description TEXT,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -102,6 +103,7 @@ def _apply_schema() -> None:
             file_path TEXT,
             uploaded_by TEXT,
             approved INTEGER NOT NULL DEFAULT 0,
+            download_count INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS announcements (
@@ -637,6 +639,86 @@ class TestVideoUpload:
         rv = client.post(
             "/api/materials/1/upload",
             data={"file": (io.BytesIO(b"data"), "file.mp4")},
+            content_type="multipart/form-data",
+        )
+        assert rv.status_code == 401
+
+    def test_upload_rejects_fake_pdf(self, client):
+        token = self._teacher_token(client, "pdf1@test.ss")
+        mid = self._create_material(client, token)
+        rv = client.post(
+            f"/api/materials/{mid}/upload",
+            data={"file": (io.BytesIO(b"this is not a pdf at all"), "fake.pdf")},
+            content_type="multipart/form-data",
+            headers=_auth(token),
+        )
+        assert rv.status_code == 400
+        assert "content" in rv.get_json()["error"].lower()
+
+    def test_upload_accepts_valid_pdf_magic(self, client):
+        token = self._teacher_token(client, "pdf2@test.ss")
+        mid = self._create_material(client, token)
+        rv = client.post(
+            f"/api/materials/{mid}/upload",
+            data={"file": (io.BytesIO(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n" + b"\x00" * 50), "real.pdf")},
+            content_type="multipart/form-data",
+            headers=_auth(token),
+        )
+        assert rv.status_code in (200, 500), f"Valid PDF magic was rejected: {rv.get_json()}"
+
+
+class TestAvatarUpload:
+    def test_upload_rejects_wrong_extension(self, client):
+        _register(client, "avatar1@test.ss")
+        token = _login(client, "avatar1@test.ss")
+        rv = client.post(
+            "/api/me/avatar",
+            data={"avatar": (io.BytesIO(b"data"), "notes.txt")},
+            content_type="multipart/form-data",
+            headers=_auth(token),
+        )
+        assert rv.status_code == 400
+
+    def test_upload_rejects_fake_image(self, client):
+        _register(client, "avatar2@test.ss")
+        token = _login(client, "avatar2@test.ss")
+        rv = client.post(
+            "/api/me/avatar",
+            data={"avatar": (io.BytesIO(b"this is not an image"), "fake.png")},
+            content_type="multipart/form-data",
+            headers=_auth(token),
+        )
+        assert rv.status_code == 400
+        assert "content" in rv.get_json()["error"].lower()
+
+    def test_upload_rejects_oversized_avatar(self, client):
+        _register(client, "avatar3@test.ss")
+        token = _login(client, "avatar3@test.ss")
+        oversized = b"\x89PNG\r\n\x1a\n" + b"\x00" * (2 * 1024 * 1024 + 1)
+        rv = client.post(
+            "/api/me/avatar",
+            data={"avatar": (io.BytesIO(oversized), "big.png")},
+            content_type="multipart/form-data",
+            headers=_auth(token),
+        )
+        assert rv.status_code == 400
+        assert "mb" in rv.get_json()["error"].lower()
+
+    def test_upload_accepts_valid_png_magic(self, client):
+        _register(client, "avatar4@test.ss")
+        token = _login(client, "avatar4@test.ss")
+        rv = client.post(
+            "/api/me/avatar",
+            data={"avatar": (io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"\x00" * 50), "real.png")},
+            content_type="multipart/form-data",
+            headers=_auth(token),
+        )
+        assert rv.status_code in (200, 500), f"Valid PNG magic was rejected: {rv.get_json()}"
+
+    def test_upload_requires_auth(self, client):
+        rv = client.post(
+            "/api/me/avatar",
+            data={"avatar": (io.BytesIO(b"data"), "file.png")},
             content_type="multipart/form-data",
         )
         assert rv.status_code == 401

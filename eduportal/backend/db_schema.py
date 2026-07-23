@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import sys
 import bcrypt
@@ -12,13 +13,40 @@ log = logging.getLogger(__name__)
 
 
 def init_db() -> None:
-    """Run Alembic migrations to head, then seed if the database is empty."""
+    """Run Alembic migrations to head, then bootstrap an admin account (always)
+    and demo content (only when explicitly requested via SEED_DEMO_DATA)."""
     _run_alembic()
     with get_db() as conn:
         from sqlalchemy import text
-        row = conn.execute(text("SELECT COUNT(*) AS count FROM schools")).fetchone()
-        if (row[0] if row else 0) == 0:
-            _seed(conn)
+        _ensure_admin_account(conn)
+        if os.environ.get("SEED_DEMO_DATA", "").strip().lower() in {"1", "true", "yes"}:
+            row = conn.execute(text("SELECT COUNT(*) AS count FROM schools")).fetchone()
+            if (row[0] if row else 0) == 0:
+                _seed_demo_content(conn)
+
+
+def _ensure_admin_account(conn) -> None:
+    """Create a platform admin account if none exists yet, so a freshly-migrated,
+    otherwise-empty database is still usable. Override the defaults via
+    ADMIN_EMAIL / ADMIN_PASSWORD in .env before first run in any shared environment."""
+    from sqlalchemy import text
+
+    existing = conn.execute(text("SELECT COUNT(*) AS count FROM users WHERE role='admin'")).scalar()
+    if existing:
+        return
+    email = os.environ.get("ADMIN_EMAIL", "admin@eduportal.ss").strip()
+    password = os.environ.get("ADMIN_PASSWORD", "Admin1234!")
+    pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    ignore_kw = "INSERT IGNORE" if engine.dialect.name == "mysql" else "INSERT OR IGNORE"
+    conn.execute(text(
+        f"{ignore_kw} INTO users (name,email,password_hash,role,state,county,verified) "
+        "VALUES (:n,:e,:h,'admin',:s,:c,1)"
+    ), dict(n="Platform Admin", e=email, h=pw, s="Central Equatoria", c="Juba"))
+    log.warning(
+        "No admin account existed — created %s with the default/configured password. "
+        "Set ADMIN_EMAIL and ADMIN_PASSWORD in .env for anything beyond local development.",
+        email,
+    )
 
 
 def _run_alembic() -> None:
@@ -40,39 +68,32 @@ def _run_alembic() -> None:
         log.info("Alembic: %s", result.stdout.strip())
 
 
-# Seed data (runs only on a fresh empty database)
+# Demo content — only loaded when SEED_DEMO_DATA is set (see init_db above).
+# Useful for local development and demos; never runs by default.
 
-def _seed(conn) -> None:
+def _seed_demo_content(conn) -> None:
     from sqlalchemy import text
 
-    pw = bcrypt.hashpw(b"Admin1234!", bcrypt.gensalt()).decode()
-    ignore_kw = "INSERT IGNORE" if engine.dialect.name == "mysql" else "INSERT OR IGNORE"
-    conn.execute(text(
-        f"{ignore_kw} INTO users (name,email,phone,password_hash,role,state,county,verified) "
-        "VALUES (:n,:e,:p,:h,:r,:s,:c,1)"
-    ), dict(n="Platform Admin", e="admin@eduportal.ss", p="+211000000000",
-            h=pw, r="admin", s="Central Equatoria", c="Juba"))
-
     schools = [
-        ("Juba Day Secondary School", "Central Equatoria", "Juba", "secondary", "mixed", "National", "Amina Mayen", "+211 912 000 101", "juba.day@example.com", 1200, "open", 980, "English", "Day", "7:30 AM – 3:30 PM", "A long-running public secondary school serving central Juba."),
-        ("Bor Primary School", "Jonglei", "Bor South", "primary", "mixed", "National", "Peter Aken", "+211 912 000 102", "bor.primary@example.com", 800, "open", 640, "English", "Day", "7:00 AM – 1:00 PM", "A community school with broad catchment across Bor South."),
-        ("Wau Girls Secondary School", "Western Bahr el Ghazal", "Wau", "secondary", "girls", "National", "Grace Mahad", "+211 912 000 103", "wau.girls@example.com", 900, "open", 725, "English", "Boarding", "8:00 AM – 4:00 PM", "Girls-focused secondary school with boarding support."),
-        ("Rumbek Academy", "Lakes", "Rumbek East", "secondary", "mixed", "National", "Deng Atar", "+211 912 000 104", "rumbek.academy@example.com", 1000, "open", 810, "English", "Day", "7:30 AM – 3:30 PM", "Mixed secondary school known for exam preparation."),
-        ("Malakal Model School", "Upper Nile", "Malakal", "primary", "mixed", "National", "Hilda Acuil", "+211 912 000 105", "malakal.model@example.com", 700, "limited", 560, "English", "Day", "7:00 AM – 1:00 PM", "A model primary school near the Nile corridor."),
-        ("Yambio Community School", "Western Equatoria", "Yambio", "primary", "mixed", "National", "Martin Yel", "+211 912 000 106", "yambio.community@example.com", 650, "open", 520, "English", "Day", "7:00 AM – 1:00 PM", "Community-rooted school with simple admission requirements."),
-        ("Kuajok Technical School", "Warrap", "Kuajok", "secondary", "mixed", "National", "Rebecca Chuol", "+211 912 000 107", "kuajok.tech@example.com", 950, "open", 760, "English", "Day", "8:00 AM – 4:00 PM", "Technical learning and practical sciences focus."),
-        ("Aweil Girls Primary", "Northern Bahr el Ghazal", "Aweil East", "primary", "girls", "National", "Mayen Chol", "+211 912 000 108", "aweil.girls@example.com", 600, "open", 480, "English", "Day", "7:00 AM – 1:00 PM", "Primary school with strong parent engagement."),
-        ("Torit Preparatory School", "Eastern Equatoria", "Torit", "secondary", "mixed", "National", "James Lado", "+211 912 000 109", "torit.prep@example.com", 850, "open", 690, "English", "Day", "7:30 AM – 3:00 PM", "Prepares learners for national examinations."),
-        ("Bentiu Bridge School", "Unity", "Bentiu", "primary", "mixed", "National", "Martha Kueth", "+211 912 000 110", "bentiu.bridge@example.com", 500, "open", 410, "English", "Day", "7:00 AM – 1:00 PM", "Stable access point for learning in Unity state."),
+        ("Juba Day Secondary School", "Central Equatoria", "Juba", "secondary", "mixed", "National", "Amina Mayen", "+211 912 000 101", "juba.day@example.com", 1200, "open", 980, "English", "Day", "public", "7:30 AM – 3:30 PM", "A long-running public secondary school serving central Juba."),
+        ("Bor Primary School", "Jonglei", "Bor South", "primary", "mixed", "National", "Peter Aken", "+211 912 000 102", "bor.primary@example.com", 800, "open", 640, "English", "Day", "public", "7:00 AM – 1:00 PM", "A community school with broad catchment across Bor South."),
+        ("Wau Girls Secondary School", "Western Bahr el Ghazal", "Wau", "secondary", "girls", "National", "Grace Mahad", "+211 912 000 103", "wau.girls@example.com", 900, "open", 725, "English", "Boarding", "private", "8:00 AM – 4:00 PM", "Girls-focused secondary school with boarding support."),
+        ("Rumbek Academy", "Lakes", "Rumbek East", "secondary", "mixed", "National", "Deng Atar", "+211 912 000 104", "rumbek.academy@example.com", 1000, "open", 810, "English", "Day", "private", "7:30 AM – 3:30 PM", "Mixed secondary school known for exam preparation."),
+        ("Malakal Model School", "Upper Nile", "Malakal", "primary", "mixed", "National", "Hilda Acuil", "+211 912 000 105", "malakal.model@example.com", 700, "limited", 560, "English", "Day", "public", "7:00 AM – 1:00 PM", "A model primary school near the Nile corridor."),
+        ("Yambio Community School", "Western Equatoria", "Yambio", "primary", "mixed", "National", "Martin Yel", "+211 912 000 106", "yambio.community@example.com", 650, "open", 520, "English", "Day", "public", "7:00 AM – 1:00 PM", "Community-rooted school with simple admission requirements."),
+        ("Kuajok Technical School", "Warrap", "Kuajok", "secondary", "mixed", "National", "Rebecca Chuol", "+211 912 000 107", "kuajok.tech@example.com", 950, "open", 760, "English", "Day", "public", "8:00 AM – 4:00 PM", "Technical learning and practical sciences focus."),
+        ("Aweil Girls Primary", "Northern Bahr el Ghazal", "Aweil East", "primary", "girls", "National", "Mayen Chol", "+211 912 000 108", "aweil.girls@example.com", 600, "open", 480, "English", "Day", "public", "7:00 AM – 1:00 PM", "Primary school with strong parent engagement."),
+        ("Torit Preparatory School", "Eastern Equatoria", "Torit", "secondary", "mixed", "National", "James Lado", "+211 912 000 109", "torit.prep@example.com", 850, "open", 690, "English", "Day", "private", "7:30 AM – 3:00 PM", "Prepares learners for national examinations."),
+        ("Bentiu Bridge School", "Unity", "Bentiu", "primary", "mixed", "National", "Martha Kueth", "+211 912 000 110", "bentiu.bridge@example.com", 500, "open", 410, "English", "Day", "public", "7:00 AM – 1:00 PM", "Stable access point for learning in Unity state."),
     ]
     school_ids: list[int] = []
     for s in schools:
         result = conn.execute(text(
             "INSERT INTO schools (name,state,county,level,type,curriculum,contact_name,phone,"
-            "email,capacity,status,enrollment,language,boarding,hours,description) "
-            "VALUES (:a,:b,:c,:d,:e,:f,:g,:h,:i,:j,:k,:l,:m,:n,:o,:p)"
+            "email,capacity,status,enrollment,language,boarding,ownership,hours,description) "
+            "VALUES (:a,:b,:c,:d,:e,:f,:g,:h,:i,:j,:k,:l,:m,:n,:o,:p,:q)"
         ), dict(a=s[0],b=s[1],c=s[2],d=s[3],e=s[4],f=s[5],g=s[6],h=s[7],
-                i=s[8],j=s[9],k=s[10],l=s[11],m=s[12],n=s[13],o=s[14],p=s[15]))
+                i=s[8],j=s[9],k=s[10],l=s[11],m=s[12],n=s[13],o=s[14],p=s[15],q=s[16]))
         school_ids.append(result.lastrowid)
 
     requirement_sets = [

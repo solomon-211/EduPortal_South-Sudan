@@ -552,6 +552,7 @@ a    { color: inherit; text-decoration: none; }
   .mkt-features { grid-template-columns: repeat(2, 1fr); }
   .mkt-mvv-grid { grid-template-columns: 1fr; }
   .mkt-values-cards { grid-template-columns: repeat(2, 1fr); }
+  .mkt-roles { grid-template-columns: repeat(2, 1fr); }
   .mkt-about-hero__links { flex-direction: column; align-items: flex-start; }
   .mkt-hero { min-height: auto; }
   .mkt-hero__inner { padding: 3rem 0; }
@@ -567,6 +568,7 @@ a    { color: inherit; text-decoration: none; }
   .mkt-hero__cards  { grid-template-columns: 1fr; }
   .mkt-features      { grid-template-columns: 1fr; }
   .mkt-values-cards  { grid-template-columns: 1fr; }
+  .mkt-roles         { grid-template-columns: 1fr; }
   .mkt-form__row    { grid-template-columns: 1fr; }
   .mkt-stats-bar    { flex-direction: column; }
   .mkt-stat-item    { border-right: 0; border-bottom: 1px solid var(--border); }

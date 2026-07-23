@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 import os
 import mimetypes
@@ -22,7 +23,7 @@ from jwt_helpers import (
     require_auth, require_role, revoke_all_refresh_tokens, revoke_refresh_token,
     verify_refresh_token,
 )
-from settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES, ALLOWED_EXTENSIONS, ALLOWED_MATERIAL_EXTS, UPLOAD_FOLDER, MATERIALS_FOLDER, ANNOUNCEMENTS_FOLDER, VAPID_PUBLIC_KEY, GOOGLE_CLIENT_ID
+from settings import ASSETS_DIR, CSS_DIR, HTML_DIR, JS_DIR, MAX_MATERIAL_BYTES, MAX_AVATAR_BYTES, ALLOWED_EXTENSIONS, ALLOWED_MATERIAL_EXTS, UPLOAD_FOLDER, MATERIALS_FOLDER, ANNOUNCEMENTS_FOLDER, VAPID_PUBLIC_KEY, GOOGLE_CLIENT_ID
 from db_connection import get_db, close_conn, engine as db_engine
 from db_queries import count, execute, is_mysql, query_all, query_one
 from db_schema import init_db
@@ -53,6 +54,34 @@ def _is_valid_video(stream) -> bool:
     if len(header) >= 8 and header[4:8] == b"ftyp":
         return True
     for magic, offset in _VIDEO_MAGIC:
+        if header[offset:offset + len(magic)] == magic:
+            return True
+    return False
+
+
+def _is_valid_pdf(stream) -> bool:
+    """A real PDF starts with the literal bytes %PDF- — cheap and reliable to check."""
+    header = stream.read(5)
+    stream.seek(0)
+    return header == b"%PDF-"
+
+
+# Magic-byte signatures for allowed avatar image formats
+_IMAGE_MAGIC: list[tuple[bytes, int]] = [
+    (b"\xff\xd8\xff", 0),                # JPEG
+    (b"\x89PNG\r\n\x1a\n", 0),           # PNG
+    (b"GIF87a", 0),                      # GIF (87a)
+    (b"GIF89a", 0),                      # GIF (89a)
+]
+
+
+def _is_valid_image(stream) -> bool:
+    """Check the first 12 bytes against known JPEG/PNG/GIF/WEBP magic bytes."""
+    header = stream.read(12)
+    stream.seek(0)
+    if len(header) >= 12 and header[0:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return True
+    for magic, offset in _IMAGE_MAGIC:
         if header[offset:offset + len(magic)] == magic:
             return True
     return False
@@ -97,6 +126,12 @@ def add_security_headers(response):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # JS/CSS have no cache-busting query string, so without this a browser can
+    # keep serving a pre-fix copy indefinitely after a deploy. no-cache still
+    # allows a fast 304 revalidation — it just stops the browser from skipping
+    # that check entirely.
+    if request.path == "/sw.js" or (request.path.startswith("/static/") and request.path.endswith((".js", ".css"))):
+        response.headers["Cache-Control"] = "no-cache"
     return response
 
 
@@ -503,8 +538,13 @@ def api_me_avatar():
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if ext not in ALLOWED_EXTENSIONS:
         return api_err("Only JPG, PNG, GIF, or WEBP files are allowed")
+    if not _is_valid_image(file.stream):
+        return api_err("File content does not match a recognised image format", 400)
+    data = file.stream.read()
+    if len(data) > MAX_AVATAR_BYTES:
+        return api_err(f"Avatar must be under {MAX_AVATAR_BYTES // (1024 * 1024)} MB", 400)
     filename = f"user_{u['id']}.{ext}"
-    stored = save_file(UPLOAD_FOLDER, filename, file.stream)
+    stored = save_file(UPLOAD_FOLDER, filename, io.BytesIO(data))
     if using_s3():
         avatar_url = storage_url(stored)
     else:
@@ -589,15 +629,17 @@ def api_schools():
     level   = request.args.get("level","").strip()
     type_   = request.args.get("type","").strip()
     boarding = request.args.get("boarding","").strip()
+    ownership = request.args.get("ownership","").strip()
     search  = request.args.get("search","").strip()
     page    = max(1, int(request.args.get("page","1") or 1))
     per_page = 6
-    sql = "SELECT id,name,state,county,level,type,status,enrollment,boarding,description FROM schools WHERE 1=1"
+    sql = "SELECT id,name,state,county,level,type,status,enrollment,boarding,ownership,description FROM schools WHERE 1=1"
     params: list = []
-    if state:    sql += " AND state=?";    params.append(state)
-    if level:    sql += " AND level=?";    params.append(level)
-    if type_:    sql += " AND type=?";     params.append(type_)
-    if boarding: sql += " AND boarding=?"; params.append(boarding)
+    if state:     sql += " AND state=?";     params.append(state)
+    if level:     sql += " AND level=?";     params.append(level)
+    if type_:     sql += " AND type=?";      params.append(type_)
+    if boarding:  sql += " AND boarding=?";  params.append(boarding)
+    if ownership: sql += " AND ownership=?"; params.append(ownership)
     if search:
         sql += " AND (name LIKE ? OR county LIKE ? OR state LIKE ?)"
         t = f"%{search}%"; params.extend([t,t,t])
@@ -622,7 +664,7 @@ def api_school_update(school_id: int):
     data = request.get_json(silent=True) or {}
     allowed = ["name","state","county","level","type","curriculum","contact_name",
                "phone","email","capacity","status","enrollment","language","boarding",
-               "hours","description"]
+               "ownership","hours","description"]
     sets, params = [], []
     for field in allowed:
         if field in data:
@@ -736,11 +778,12 @@ def api_material_upload_file(material_id: int):
         return api_err("Only PDF, MP4, WebM, OGG, or M4V files are allowed")
     if ext in VIDEO_EXTENSIONS and not _is_valid_video(f.stream):
         return api_err("File content does not match a recognised video format", 400)
+    if ext == "pdf" and not _is_valid_pdf(f.stream):
+        return api_err("File content does not match a valid PDF", 400)
     safe_name = f"material_{material_id}_{secure_filename(f.filename)}"
     # Read into memory once so we can get size and still pass stream to storage
     data = f.stream.read()
     file_size = f"{len(data) // 1024} KB"
-    import io
     stored = save_file(MATERIALS_FOLDER, safe_name, io.BytesIO(data))
     if using_s3():
         file_path = storage_url(stored)
@@ -787,6 +830,7 @@ def api_material_download(material_id: int):
     disk_path = ASSETS_DIR / clean_rel
     if not disk_path.exists():
         return api_err("File not found on server", 404)
+    execute("UPDATE materials SET download_count=download_count+1 WHERE id=?", (material_id,))
     return flask_send_file(
         str(disk_path),
         as_attachment=True,
@@ -1070,6 +1114,8 @@ def api_announcement_upload(ann_id: int):
     ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
     if ext not in {"pdf"}:
         return api_err("Only PDF files are allowed for announcement attachments")
+    if not _is_valid_pdf(f.stream):
+        return api_err("File content does not match a valid PDF", 400)
     safe_name = f"ann_{ann_id}_{secure_filename(f.filename)}"
     ANNOUNCEMENTS_FOLDER.mkdir(parents=True, exist_ok=True)
     stored = save_file(ANNOUNCEMENTS_FOLDER, safe_name, f.stream)
@@ -1430,9 +1476,45 @@ def api_admin_assign_school(user_id: int):
 @require_role("admin")
 def api_admin_suspend(user_id: int):
     u = request.current_user  # type: ignore[attr-defined]
+    if user_id == u["id"]:
+        return api_err("Cannot suspend your own account")
     execute("UPDATE users SET verified=-1 WHERE id=?", (user_id,))
     log_audit(u["id"], "suspend", "user", user_id)
     return jsonify({"message": "User suspended"})
+
+@app.route("/api/admin/users/<int:user_id>/unsuspend", methods=["POST"])
+@require_role("admin")
+def api_admin_unsuspend(user_id: int):
+    u = request.current_user  # type: ignore[attr-defined]
+    target = query_one("SELECT id FROM users WHERE id=?", (user_id,))
+    if not target:
+        return api_err("User not found", 404)
+    execute("UPDATE users SET verified=1 WHERE id=?", (user_id,))
+    log_audit(u["id"], "unsuspend", "user", user_id)
+    return jsonify({"message": "User reactivated"})
+
+@app.route("/api/admin/users/<int:user_id>", methods=["PUT"])
+@require_role("admin")
+def api_admin_edit_user(user_id: int):
+    """General account-details edit for the platform admin (FR 7.2)."""
+    u    = request.current_user  # type: ignore[attr-defined]
+    data = request.get_json(silent=True) or {}
+    target = query_one("SELECT id FROM users WHERE id=?", (user_id,))
+    if not target:
+        return api_err("User not found", 404)
+    allowed = ["name", "email", "phone", "state", "county"]
+    sets, params = [], []
+    for field in allowed:
+        if field in data:
+            value = (data[field] or "").strip() or None
+            sets.append(f"{field}=?")
+            params.append(value)
+    if not sets:
+        return api_err("No updatable fields provided")
+    params.append(user_id)
+    execute(f"UPDATE users SET {', '.join(sets)} WHERE id=?", tuple(params))  # noqa: S608
+    log_audit(u["id"], "edit_user", "user", user_id, ", ".join(sets))
+    return jsonify({"message": "User updated"})
 
 @app.route("/api/admin/users/<int:user_id>/role", methods=["POST"])
 @require_role("admin")
@@ -1443,6 +1525,8 @@ def api_admin_change_role(user_id: int):
     valid_roles = {"student","parent","teacher","school_admin","ngo_officer","org_publisher","admin"}
     if new_role not in valid_roles:
         return api_err(f"role must be one of: {', '.join(valid_roles)}")
+    if user_id == u["id"] and new_role != "admin":
+        return api_err("Cannot change your own role away from admin")
     execute("UPDATE users SET role=? WHERE id=?", (new_role, user_id))
     log_audit(u["id"], f"change_role_to_{new_role}", "user", user_id)
     return jsonify({"message": f"Role changed to {new_role}"})
@@ -1462,9 +1546,10 @@ def api_admin_analytics():
            JOIN schools s ON s.id=b.item_id WHERE b.item_type='school'
            GROUP BY s.id,s.name ORDER BY count DESC LIMIT 5""")
     top_materials = query_all(
-        """SELECT m.title,m.subject,m.grade,COUNT(b.id) AS saves
+        """SELECT m.title,m.subject,m.grade,m.download_count AS downloads,COUNT(b.id) AS saves
            FROM materials m LEFT JOIN bookmarks b ON b.item_id=m.id AND b.item_type='material'
-           WHERE m.approved=1 GROUP BY m.id ORDER BY saves DESC LIMIT 5""")
+           WHERE m.approved=1 GROUP BY m.id ORDER BY m.download_count DESC, saves DESC LIMIT 5""")
+    total_downloads = count("SELECT COALESCE(SUM(download_count),0) AS count FROM materials")
     app_counts = query_all(
         """SELECT s.title,COUNT(a.id) AS applications
            FROM scholarships s LEFT JOIN applications a ON a.scholarship_id=s.id
@@ -1481,6 +1566,7 @@ def api_admin_analytics():
         },
         "total_users": count("SELECT COUNT(*) AS count FROM users"),
         "total_applications": count("SELECT COUNT(*) AS count FROM applications"),
+        "total_downloads": total_downloads,
     })
 
 # Notification test routes
@@ -1750,8 +1836,8 @@ def api_admin_onboard_school():
         return api_err("A contact email is required to send the admin invitation")
     sid = execute(
         """INSERT INTO schools (name,state,county,level,type,curriculum,contact_name,phone,
-           email,capacity,status,enrollment,language,boarding,hours,description)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           email,capacity,status,enrollment,language,boarding,ownership,hours,description)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             name, state, county, level,
             (data.get("type") or "mixed").strip(),
@@ -1764,6 +1850,7 @@ def api_admin_onboard_school():
             data.get("enrollment") or 0,
             (data.get("language") or "English").strip(),
             (data.get("boarding") or "Day").strip(),
+            (data.get("ownership") or "public").strip(),
             (data.get("hours") or "").strip()[:80] or None,
             (data.get("description") or "").strip() or None,
         ),
@@ -1946,8 +2033,8 @@ def api_school_create():
         return api_err("level must be primary, secondary, or tertiary")
     sid = execute(
         """INSERT INTO schools (name,state,county,level,type,curriculum,contact_name,phone,
-           email,capacity,status,enrollment,language,boarding,hours,description)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           email,capacity,status,enrollment,language,boarding,ownership,hours,description)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             name, state, county, level,
             (data.get("type") or "mixed").strip(),
@@ -1960,6 +2047,7 @@ def api_school_create():
             data.get("enrollment") or 0,
             (data.get("language") or "English").strip(),
             (data.get("boarding") or "Day").strip(),
+            (data.get("ownership") or "public").strip(),
             (data.get("hours") or "").strip()[:80] or None,
             (data.get("description") or "").strip() or None,
         ),

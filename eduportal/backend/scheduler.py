@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from backup import run_backup
 from db_queries import query_all
 from notify_email import send_email
 from notify_store import already_notified, create_notification
@@ -67,13 +68,21 @@ def start(app) -> BackgroundScheduler:
     if _scheduler is not None:
         return _scheduler
 
-    def _job():
+    def _reminders_job():
         with app.app_context():
             _run_safely(remind_upcoming_deadlines)
 
+    def _backup_job():
+        with app.app_context():
+            _run_safely(run_backup)
+
     _scheduler = BackgroundScheduler(daemon=True)
     _scheduler.add_job(
-        _job, "interval", hours=6, id="deadline_reminders",
+        _reminders_job, "interval", hours=6, id="deadline_reminders",
+        next_run_time=datetime.now(),  # also run once at startup
+    )
+    _scheduler.add_job(
+        _backup_job, "interval", hours=24, id="database_backup",
         next_run_time=datetime.now(),  # also run once at startup
     )
     _scheduler.start()

@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  function token() { return localStorage.getItem('token') || ''; }
+  function token() { return localStorage.getItem('eduportal_token') || ''; }
   function authHeaders() {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` };
   }
@@ -191,7 +191,7 @@
   // Init
 
   function init() {
-    const stored = localStorage.getItem('user');
+    const stored = localStorage.getItem('eduportal_user');
     if (!stored) {
       window.location.href = '/login';
       return;

@@ -67,6 +67,12 @@
     return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // Scholarship deadlines are plain YYYY-MM-DD strings, so a lexicographic
+  // comparison against today's date is a valid (and cheap) "still open" check.
+  function isOpenDeadline(deadline) {
+    return !!deadline && deadline >= new Date().toISOString().slice(0, 10);
+  }
+
   function schoolIdFromPath() {
     const m = window.location.pathname.match(/\/schools\/(\d+)/);
     return m ? m[1] : null;
@@ -317,16 +323,17 @@
       const { items } = await api('/api/scholarships');
       const container = document.getElementById('dashboard-scholarships');
       if (container) {
-        container.innerHTML = items.slice(0, 3).map(s => `
-          <div class="opportunity-card">
+        const open = items.filter(s => isOpenDeadline(s.deadline));
+        container.innerHTML = open.slice(0, 3).map(s => `
+          <a class="opportunity-card" href="/opportunities">
             <span class="tag">Scholarship</span>
             <h3>${esc(s.title)}</h3>
             <p class="org">${esc(s.provider || 'Verified NGO')}</p>
             <div class="result-card-footer">
               <span class="deadline-badge">Deadline: <strong>${esc(s.deadline)}</strong></span>
-              <span class="card-link">Open</span>
+              <span class="card-link">Details</span>
             </div>
-          </div>`).join('') || '<p class="u-text-muted">No scholarships available.</p>';
+          </a>`).join('') || '<p class="empty-text">No scholarships available.</p>';
       }
     } catch (err) {
       const container = document.getElementById('dashboard-scholarships');
@@ -492,6 +499,7 @@
             <span class="tag">${esc(school.state)}</span>
             ${statusBadge(school.status)}
             <span class="tag tag-muted">${esc(school.type || 'Mixed')}</span>
+            <span class="tag tag-muted">${esc(school.ownership === 'private' ? 'Private' : 'Public')}</span>
           </div>
           <h1 class="school-detail-title">${esc(school.name)}</h1>
           <p class="u-card-copy">${esc(school.county)}, ${esc(school.state)} &middot; ${esc(school.level)} &middot; ${esc(school.boarding || 'Day')}</p>
@@ -593,6 +601,12 @@
             <select class="field-input" name="boarding">
               <option value="Day" ${school.boarding==='Day'?'selected':''}>Day</option>
               <option value="Boarding" ${school.boarding==='Boarding'?'selected':''}>Boarding</option>
+            </select>
+          </label>
+          <label class="field-label">Ownership
+            <select class="field-input" name="ownership">
+              <option value="public" ${school.ownership!=='private'?'selected':''}>Public</option>
+              <option value="private" ${school.ownership==='private'?'selected':''}>Private</option>
             </select>
           </label>
           <label class="field-label">Status
@@ -993,7 +1007,10 @@
       const deadlineVal = params.get('deadline');
       if (deadlineVal) { params.delete('deadline'); params.set('deadline_after', deadlineVal); }
       try {
-        const { items } = await api(`/api/scholarships?${params}`);
+        const { items: allItems } = await api(`/api/scholarships?${params}`);
+        // Without an explicit "closes before" filter, don't bury genuinely
+        // open scholarships under ones that have already passed their deadline.
+        const items = deadlineVal ? allItems : allItems.filter(s => isOpenDeadline(s.deadline));
         results.innerHTML = items.length
           ? items.map(s => `
               <article class="result-card opportunity-card u-cursor-pointer" data-id="${s.id}" tabindex="0" role="button">
@@ -1405,7 +1422,7 @@
                 <button class="card-button btn-reject" data-action="reject" data-type="${esc(type)}" data-id="${item.id}">Reject</button>
               </div>
             </div>`).join('')
-        : '<p class="u-text-muted">No items pending.</p>';
+        : '<p class="empty-text">No items pending.</p>';
 
       el.querySelectorAll('[data-action]').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -1429,9 +1446,11 @@
         const el = document.getElementById('admin-users-list');
         const total = document.getElementById('stat-users');
         if (total) total.textContent = items.length;
+        const selfId = getUser()?.id;
         if (el) {
           el.innerHTML = items.length
             ? items.map(u => {
+                const isSelf = u.id === selfId;
                 const schoolOptions = allSchools.map(s =>
                   `<option value="${s.id}" ${u.school_id === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
                 const assignControl = u.role === 'school_admin' ? `
@@ -1441,11 +1460,20 @@
                   </select>
                   <button class="btn-assign-school u-admin-action-btn" data-id="${u.id}">Assign</button>` : '';
                 return `
-                <div class="admin-user-row">
-                  <div>
-                    <strong>${esc(u.name)}</strong>
+                <div class="admin-user-row" data-user-row="${u.id}">
+                  <div class="admin-user-view">
+                    <strong>${esc(u.name)}${isSelf ? ' (you)' : ''}</strong>
                     <span>${esc(u.role)} &middot; ${esc(u.state)} &middot; ${esc(u.email || u.phone || 'no contact')}</span>
                     ${u.role === 'school_admin' && u.school_id ? `<span class="u-assigned-school-note">&#127eb; Assigned to school #${u.school_id}</span>` : ''}
+                  </div>
+                  <div class="admin-user-edit hidden">
+                    <input class="field-input u-compact-select" data-edit="name" value="${esc(u.name)}" placeholder="Name">
+                    <input class="field-input u-compact-select" data-edit="email" value="${esc(u.email || '')}" placeholder="Email">
+                    <input class="field-input u-compact-select" data-edit="phone" value="${esc(u.phone || '')}" placeholder="Phone">
+                    <input class="field-input u-compact-select" data-edit="state" value="${esc(u.state || '')}" placeholder="State">
+                    <input class="field-input u-compact-select" data-edit="county" value="${esc(u.county || '')}" placeholder="County">
+                    <button class="btn-save-user u-admin-action-btn" data-id="${u.id}">Save</button>
+                    <button class="btn-cancel-edit-user u-admin-action-btn">Cancel</button>
                   </div>
                   <div class="u-card-link-wrap-end">
                     <select class="role-select u-compact-select" data-id="${u.id}">
@@ -1456,14 +1484,17 @@
                       <option value="ngo_officer" ${u.role==='ngo_officer'?'selected':''}>NGO Officer</option>
                       <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
                     </select>
-                    <button class="btn-change-role u-admin-action-btn" data-id="${u.id}">Set Role</button>
+                    <button class="btn-change-role u-admin-action-btn" data-id="${u.id}" ${isSelf ? 'disabled title="You cannot change your own role"' : ''}>Set Role</button>
                     ${assignControl}
+                    <button class="btn-edit-user u-admin-action-btn" data-id="${u.id}">Edit</button>
+                    ${isSelf ? '' : `
                     <button class="btn-suspend" data-id="${u.id}" ${u.verified === -1 ? 'disabled' : ''}>${u.verified === -1 ? 'Suspended' : 'Suspend'}</button>
-                    <button class="btn-delete-user u-admin-delete-btn" data-id="${u.id}">Delete</button>
+                    <button class="btn-unsuspend u-admin-action-btn" data-id="${u.id}" ${u.verified === -1 ? '' : 'disabled'}>Reactivate</button>
+                    <button class="btn-delete-user u-admin-delete-btn" data-id="${u.id}">Delete</button>`}
                   </div>
                 </div>`;
               }).join('')
-            : '<p class="u-text-muted">No users found.</p>';
+            : '<p class="empty-text">No users found.</p>';
 
           el.querySelectorAll('.btn-assign-school').forEach(btn => {
             btn.addEventListener('click', async () => {
@@ -1498,8 +1529,48 @@
               btn.disabled = true;
               try {
                 await api(`/api/admin/users/${btn.dataset.id}/suspend`, { method: 'POST' });
-                btn.textContent = 'Suspended';
+                loadUsers();
               } catch (err) { btn.disabled = false; btn.textContent = err.message; }
+            });
+          });
+
+          el.querySelectorAll('.btn-unsuspend:not([disabled])').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              if (!confirm('Reactivate this user’s account?')) return;
+              btn.disabled = true;
+              try {
+                await api(`/api/admin/users/${btn.dataset.id}/unsuspend`, { method: 'POST' });
+                loadUsers();
+              } catch (err) { btn.disabled = false; btn.textContent = err.message; }
+            });
+          });
+
+          el.querySelectorAll('.btn-edit-user').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const row = btn.closest('[data-user-row]');
+              row.querySelector('.admin-user-view').classList.add('hidden');
+              row.querySelector('.admin-user-edit').classList.remove('hidden');
+            });
+          });
+
+          el.querySelectorAll('.btn-cancel-edit-user').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const row = btn.closest('[data-user-row]');
+              row.querySelector('.admin-user-edit').classList.add('hidden');
+              row.querySelector('.admin-user-view').classList.remove('hidden');
+            });
+          });
+
+          el.querySelectorAll('.btn-save-user').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const row = btn.closest('[data-user-row]');
+              const payload = {};
+              row.querySelectorAll('[data-edit]').forEach(input => { payload[input.dataset.edit] = input.value.trim(); });
+              btn.disabled = true;
+              try {
+                await api(`/api/admin/users/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+                loadUsers();
+              } catch (err) { btn.disabled = false; alert(err.message); }
             });
           });
 
@@ -1524,6 +1595,7 @@
         const bookmarksEl = document.getElementById('analytics-bookmarks');
         const contentEl = document.getElementById('analytics-content');
         const appsEl = document.getElementById('analytics-applications');
+        const materialsEl = document.getElementById('analytics-materials');
         if (statesEl) statesEl.innerHTML = data.users_by_state.map(r =>
           `<div><strong>${esc(r.state)}</strong><span>${esc(r.count)} users</span></div>`).join('') || '<div><strong>No data</strong><span>—</span></div>';
         if (bookmarksEl) bookmarksEl.innerHTML = data.bookmarked_schools.map(r =>
@@ -1533,9 +1605,12 @@
           <div><strong>${esc(data.approved.announcements)}</strong><span>approved announcements</span></div>
           <div><strong>${esc(data.approved.scholarships)}</strong><span>approved scholarships</span></div>
           <div><strong>${esc(data.total_users)}</strong><span>registered users</span></div>
-          <div><strong>${esc(data.total_applications)}</strong><span>total applications</span></div>`;
+          <div><strong>${esc(data.total_applications)}</strong><span>total applications</span></div>
+          <div><strong>${esc(data.total_downloads)}</strong><span>total material downloads</span></div>`;
         if (appsEl) appsEl.innerHTML = data.scholarship_applications.map(r =>
           `<div><strong>${esc(r.title)}</strong><span>${esc(r.applications)} applications</span></div>`).join('') || '<div><strong>No data</strong><span>—</span></div>';
+        if (materialsEl) materialsEl.innerHTML = data.top_materials.map(r =>
+          `<div><strong>${esc(r.title)}</strong><span>${esc(r.downloads)} downloads &middot; ${esc(r.saves)} saves</span></div>`).join('') || '<div><strong>No data</strong><span>—</span></div>';
       } catch (_) {}
     }
 
@@ -1561,7 +1636,7 @@
                 <p><strong>${esc(l.action)}</strong> on ${esc(l.target_type)} #${esc(l.target_id)}${l.note ? ` &mdash; ${esc(l.note)}` : ''}</p>
                 <p class="audit-time">${esc(l.timestamp)}</p>
               </div>`).join('')
-          : '<p class="u-text-muted">No audit entries yet.</p>';
+          : '<p class="empty-text">No audit entries yet.</p>';
       } catch (_) {}
     }
 
@@ -1575,7 +1650,7 @@
       listEl.innerHTML = '<p class="loading-text">Loading\u2026</p>';
       try {
         const { items } = await api('/api/admin/applications' + (status ? '?status=' + encodeURIComponent(status) : ''));
-        if (!items.length) { listEl.innerHTML = '<p class="u-text-muted">No applications found.</p>'; return; }
+        if (!items.length) { listEl.innerHTML = '<p class="empty-text">No applications found.</p>'; return; }
         listEl.innerHTML = items.map(a => `
           <div class="admin-approve-card" class="u-flex-center">
             <div class="u-flex-grow-1">
@@ -1640,7 +1715,7 @@
                   <button class="btn-delete-school u-btn-pill-danger" data-id="${s.id}">Delete</button>
                 </div>
               </div>`).join('')
-          : '<p class="u-text-muted">No schools found.</p>';
+          : '<p class="empty-text">No schools found.</p>';
 
         listEl.querySelectorAll('.btn-delete-school').forEach(btn => {
           btn.addEventListener('click', async () => {

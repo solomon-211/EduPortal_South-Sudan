@@ -20,6 +20,9 @@ env/
 *.sqlite3
 *.db
 
+# Automated database backups — may contain real user data
+eduportal/backups/
+
 # Uploaded user files
 eduportal/frontend/assets/avatars/*
 eduportal/frontend/assets/materials/*
