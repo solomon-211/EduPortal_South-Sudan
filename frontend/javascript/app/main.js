@@ -1810,8 +1810,20 @@
     const uploadBtn      = document.getElementById('avatar-upload-btn');
     if (!form) return;
 
-    // A broken/expired avatar URL falls back to the placeholder icon instead
-    // of a broken-image glyph, however avatarImg.src ends up set.
+    // Matches the initials the sidebar shows for the same "no avatar yet"
+    // state (sidebar-main.js) — without this, a user with no photo saw two
+    // different placeholders at once: initials up top, a generic silhouette
+    // icon here.
+    function showInitialsFallback(name) {
+      if (!avatarFallback) return;
+      const initials = (name || '').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+      avatarFallback.innerHTML = initials
+        ? `<span class="avatar-fallback-initials">${esc(initials)}</span>`
+        : avatarFallback.innerHTML;
+    }
+
+    // A broken/expired avatar URL falls back to the initials placeholder
+    // instead of a broken-image glyph, however avatarImg.src ends up set.
     avatarImg?.addEventListener('error', () => {
       avatarImg.style.display = 'none';
       if (avatarFallback) avatarFallback.style.display = 'flex';
@@ -1822,6 +1834,7 @@
       const { user } = await api('/api/me');
       if (nameEl) nameEl.textContent = user.name;
       if (roleEl) roleEl.textContent = user.role.replace('_', ' ');
+      showInitialsFallback(user.name);
 
       // Show saved avatar if present
       if (user.avatar && avatarImg) {
