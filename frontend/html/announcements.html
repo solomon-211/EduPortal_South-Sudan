@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Announcements | EduPortal South Sudan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Open+Sans:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/static/html/announcements.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/app/shared-utils.js"></script>
+  <script defer src="/static/navigation/sidebar-main.js"></script>
+  <script defer src="/static/app/main.js"></script>
+  <script defer src="/static/app/announcements.js"></script>
+</head>
+<body data-page="announcements">
+  <div class="dashboard">
+    <nav class="sidebar"></nav>
+
+    <header class="top-banner">
+      <div>
+        <p class="eyebrow">Announcements</p>
+        <h1 id="page-greeting">Welcome back.</h1>
+      </div>
+      <div class="top-banner-actions"></div>
+    </header>
+
+    <main class="main-content">
+
+      <section class="dash-hero-strip page-hero-strip">
+        <div class="dash-hero-text">
+          <p class="dash-hero-label">Announcements</p>
+          <h2 class="dash-hero-title">Notices from the Ministry, SSNEC, universities, schools &amp; more.</h2>
+        </div>
+      </section>
+
+      <!-- Filter toolbar -->
+      <section class="toolbar-card card">
+        <form id="announcements-filter-form" class="filter-row">
+          <input name="search" type="search" placeholder="Search announcements…">
+
+          <select name="audience" title="Filter by audience">
+            <option value="">All audiences</option>
+            <option value="students">Students</option>
+            <option value="teachers">Teachers</option>
+            <option value="parents">Parents</option>
+            <option value="all">Everyone</option>
+          </select>
+
+          <select name="priority" title="Filter by priority">
+            <option value="">Any priority</option>
+            <option value="urgent">Urgent</option>
+            <option value="high">High</option>
+            <option value="normal">Normal</option>
+          </select>
+
+          <button class="card-button" type="submit">Filter</button>
+        </form>
+      </section>
+
+      <!-- Post form — visible to org_publisher / school_admin / ngo_officer / admin -->
+      <section id="post-announcement-section" class="content-panel hidden u-panel-bottom-md">
+        <p class="section-label u-card-head-sm">PUBLISH AN ANNOUNCEMENT</p>
+        <form id="post-announcement-form" class="post-form-grid">
+
+          <div class="post-form-row-2">
+            <label class="field">
+              <span>Title</span>
+              <input type="text" name="title" placeholder="Announcement title" required>
+            </label>
+            <label class="field">
+              <span>Audience</span>
+              <select name="audience">
+                <option value="students">Students</option>
+                <option value="teachers">Teachers</option>
+                <option value="parents">Parents</option>
+                <option value="all">Everyone</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Body</span>
+            <textarea name="body" rows="4" placeholder="Write your announcement here…" required class="post-form-textarea"></textarea>
+          </label>
+
+          <div class="post-form-row-2">
+            <label class="field">
+              <span>Organisation type</span>
+              <select name="org_type" id="post-org-type">
+                <option value="Ministry of General Education">Ministry of General Education</option>
+                <option value="State Ministry of Education">State Ministry of Education</option>
+                <option value="Examination Body">Examination Body (SSNEC)</option>
+                <option value="University">University</option>
+                <option value="College">College</option>
+                <option value="School">School</option>
+                <option value="NGO">NGO</option>
+                <option value="Scholarship Provider">Scholarship Provider</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Organisation name <span class="field-optional">(optional)</span></span>
+              <input type="text" name="org_name" placeholder="e.g. University of Juba">
+            </label>
+          </div>
+
+          <div class="post-form-row-2">
+            <label class="field">
+              <span>Priority</span>
+              <select name="priority">
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>State <span class="field-optional">(leave blank for national)</span></span>
+              <select name="state">
+                <option value="">National / All states</option>
+                <option value="Central Equatoria">Central Equatoria</option>
+                <option value="Eastern Equatoria">Eastern Equatoria</option>
+                <option value="Western Equatoria">Western Equatoria</option>
+                <option value="Jonglei">Jonglei</option>
+                <option value="Upper Nile">Upper Nile</option>
+                <option value="Unity">Unity</option>
+                <option value="Lakes">Lakes</option>
+                <option value="Warrap">Warrap</option>
+                <option value="Northern Bahr el Ghazal">Northern Bahr el Ghazal</option>
+                <option value="Western Bahr el Ghazal">Western Bahr el Ghazal</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="post-form-row-2">
+            <label class="field">
+              <span>Expires on <span class="field-optional">(optional)</span></span>
+              <input type="date" name="expires_at">
+            </label>
+            <label class="field">
+              <span>Attachment URL <span class="field-optional">(optional)</span></span>
+              <input type="url" name="attachment_url" placeholder="https://…">
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Attach PDF file <span class="field-optional">(optional — uploaded after submission)</span></span>
+            <input type="file" name="attachment_file" accept=".pdf" id="ann-file-input" class="u-file-plain-sm">
+          </label>
+
+          <button class="card-button u-card-button-compact-sm" type="submit">Submit for review</button>
+          <p id="post-ann-message" class="status-message"></p>
+        </form>
+      </section>
+
+      <!-- Urgent banner strip -->
+      <div id="urgent-banner-strip" class="hidden"></div>
+
+      <!-- Results -->
+      <section id="announcements-results" class="announcement-list"></section>
+
+    </main>
+  </div>
+</body>
+</html>

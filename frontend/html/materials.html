@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Learning Resources | EduPortal South Sudan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Open+Sans:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/static/html/materials.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/app/shared-utils.js"></script>
+  <script defer src="/static/navigation/sidebar-main.js"></script>
+  <script defer src="/static/app/main.js"></script>
+</head>
+<body data-page="materials">
+<div class="dashboard">
+  <nav class="sidebar"></nav>
+
+  <header class="top-banner">
+    <div>
+      <p class="eyebrow">Learning Resources</p>
+      <h1 id="page-greeting">Welcome back.</h1>
+    </div>
+    <div class="top-banner-actions"></div>
+  </header>
+
+  <main class="main-content">
+
+    <section class="dash-hero-strip page-hero-strip">
+      <div class="dash-hero-text">
+        <p class="dash-hero-label">Learning Resources</p>
+        <h2 class="dash-hero-title">Study materials and past papers.</h2>
+      </div>
+    </section>
+
+    <section class="toolbar-card card">
+      <form id="materials-search-form" class="filter-row">
+        <input name="search" type="search" placeholder="Search by title or subject&hellip;">
+        <input type="text" name="subject" list="subject-suggestions" title="Filter by subject" placeholder="All subjects">
+        <select name="grade" title="Filter by grade">
+          <option value="">All grades</option>
+          <option>P1</option><option>P2</option><option>P3</option><option>P4</option>
+          <option>P5</option><option>P6</option><option>P7</option><option>P8</option>
+          <option>S1</option><option>S2</option><option>S3</option>
+          <option>S4</option>
+        </select>
+        <select name="sort" title="Sort by">
+          <option value="">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="title">Title (A-Z)</option>
+        </select>
+        <button class="card-button" type="submit">Filter</button>
+      </form>
+    </section>
+
+    <!-- Upload form - shown to teachers / school_admin / admin via JS -->
+    <section id="upload-material-section" class="content-panel hidden u-panel-bottom-md">
+      <p class="section-label u-card-head-sm">UPLOAD A RESOURCE</p>
+      <form id="upload-material-form" class="post-form-grid">
+        <div class="post-form-row-2">
+          <label class="field"><span>Title</span><input type="text" name="title" placeholder="Resource title" required></label>
+          <label class="field"><span>Subject</span>
+            <input type="text" name="subject" list="subject-suggestions" placeholder="e.g. Mathematics" required>
+          </label>
+        </div>
+        <div class="post-form-row-3">
+          <label class="field"><span>Grade</span>
+            <select name="grade">
+              <option>P1</option><option>P2</option><option>P3</option><option>P4</option>
+              <option>P5</option><option>P6</option><option>P7</option><option>P8</option>
+              <option>S1</option><option>S2</option><option>S3</option>
+              <option>S4</option>
+            </select>
+          </label>
+          <label class="field"><span>Year</span><input type="number" name="year" placeholder="e.g. 2024" min="2000" max="2099" required></label>
+          <label class="field"><span>Type</span>
+            <select name="type">
+              <option value="past paper">Past Paper</option>
+              <option value="study guide">Study Guide</option>
+              <option value="teacher note">Teacher Note</option>
+              <option value="tutorial video">Tutorial Video</option>
+            </select>
+          </label>
+        </div>
+        <label class="field u-field-label-block">
+          <span>PDF or video file (optional &mdash; attach after submission)</span>
+          <input type="file" name="file" accept=".pdf,.mp4,.webm,.ogg,.m4v" id="material-file-input" class="u-file-plain-sm">
+        </label>
+        <div id="material-file-preview" class="file-preview hidden"></div>
+        <button class="card-button u-card-button-compact-sm" type="submit">Submit for admin review</button>
+        <p id="upload-material-message" class="status-message"></p>
+      </form>
+    </section>
+
+    <datalist id="subject-suggestions">
+      <option value="English">
+      <option value="Mathematics">
+      <option value="Kiswahili">
+      <option value="Science">
+      <option value="Biology">
+      <option value="Chemistry">
+      <option value="Physics">
+      <option value="Geography">
+      <option value="History">
+      <option value="Social Studies">
+      <option value="Christian Religious Education">
+      <option value="Islamic Religious Education">
+      <option value="Civic Education">
+      <option value="Agriculture">
+      <option value="Computer Studies">
+      <option value="Business Studies">
+      <option value="Home Science">
+      <option value="Literature in English">
+      <option value="Physical Education">
+    </datalist>
+
+    <section class="directory-layout directory-layout-reversed materials-layout">
+
+      <!-- Left: detail panel -->
+      <aside class="directory-sidebar card" id="material-detail-panel">
+        <div class="toolbar-card-inner">
+          <p class="eyebrow">Resource detail</p>
+          <h2 id="mat-detail-title" class="u-card-title-sm">Select a resource</h2>
+          <p class="section-copy" id="mat-detail-hint">Click any resource on the right to preview it here.</p>
+        </div>
+        <div id="material-detail" class="u-pad-x-sm"></div>
+      </aside>
+
+      <!-- Right: results list -->
+      <div class="directory-main">
+        <div class="materials-toolbar">
+          <p class="section-label no-margin">Resources</p>
+          <div class="mat-view-toggle" aria-label="Switch view">
+            <span class="mat-view-label">View</span>
+            <button class="mat-view-btn active" id="mat-btn-list" title="List view" aria-label="List view">
+              <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M5 4h8M5 8h8M5 12h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="2.5" cy="4" r="1" fill="currentColor"/><circle cx="2.5" cy="8" r="1" fill="currentColor"/><circle cx="2.5" cy="12" r="1" fill="currentColor"/></svg>
+              List
+            </button>
+            <button class="mat-view-btn" id="mat-btn-grid" title="Card view" aria-label="Card view">
+              <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+              Cards
+            </button>
+          </div>
+        </div>
+        <section id="materials-results" class="material-list"></section>
+        <div id="materials-pagination"></div>
+      </div>
+
+    </section>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>School Dashboard | EduPortal South Sudan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Open+Sans:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/static/html/school-dashboard.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/app/shared-utils.js"></script>
+  <script defer src="/static/navigation/sidebar-main.js"></script>
+  <script defer src="/static/app/main.js"></script>
+</head>
+<body class="dashboard-page" data-page="school-dashboard">
+<div class="dashboard">
+  <nav class="sidebar"></nav>
+
+  <header class="top-banner">
+    <div>
+      <p class="eyebrow">School Dashboard</p>
+      <h1 id="school-dash-title">Your school overview.</h1>
+    </div>
+    <div class="top-banner-actions"></div>
+  </header>
+
+  <main class="main-content" id="school-dash-shell">
+
+    <section class="dash-hero-strip page-hero-strip">
+      <div class="dash-hero-text">
+        <p class="dash-hero-label">School Dashboard</p>
+        <h2 class="dash-hero-title">Manage your school's profile and requirements.</h2>
+      </div>
+      <div class="dash-hero-actions">
+        <a class="dash-hero-btn dash-hero-btn-secondary hidden" id="sd-public-profile-link" href="/directory">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16" aria-hidden="true"><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.2" stroke="currentColor" stroke-width="1.6"/></svg>
+          View Public Profile
+        </a>
+        <a class="dash-hero-btn dash-hero-btn-secondary" href="/directory">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16" aria-hidden="true"><path d="M3 10l7-5 7 5-7 5-7-5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6 11.5v4l4 2.5 4-2.5v-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          Directory
+        </a>
+        <a class="dash-hero-btn dash-hero-btn-primary" href="/dashboard">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16" aria-hidden="true"><path d="M3 11l7-6 7 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 10v7h10v-7" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          Dashboard
+        </a>
+      </div>
+    </section>
+
+    <p id="school-dash-notice" class="admin-notice hidden">
+      This page is for school administrators only. Ask the platform admin to assign you to a school.
+    </p>
+
+    <!-- Shown to a school_admin with no school assigned yet: list their own
+         institution instead of waiting on an admin to onboard them by invite. -->
+    <section id="school-dash-claim" class="content-panel hidden">
+      <p class="section-label school-section-label">LIST YOUR SCHOOL</p>
+      <p class="school-claim-copy">Your account isn't linked to a school yet. Submit your school's details below — an admin will review and approve it, then you can complete the rest of the profile here.</p>
+      <p id="school-claim-msg" class="status-message school-status-message"></p>
+      <form id="school-claim-form" class="post-form-grid">
+        <div class="post-form-row-2">
+          <label class="field"><span>School Name</span><input name="name" type="text" required></label>
+          <label class="field"><span>Level</span>
+            <select name="level" required>
+              <option value="primary">Primary</option>
+              <option value="secondary">Secondary</option>
+              <option value="both">Both</option>
+            </select>
+          </label>
+        </div>
+        <div class="post-form-row-2">
+          <label class="field"><span>State</span>
+            <select name="state" required>
+              <option value="">Select state…</option>
+              <option>Central Equatoria</option>
+              <option>Eastern Equatoria</option>
+              <option>Jonglei</option>
+              <option>Lakes</option>
+              <option>Northern Bahr el Ghazal</option>
+              <option>Unity</option>
+              <option>Upper Nile</option>
+              <option>Warrap</option>
+              <option>Western Bahr el Ghazal</option>
+              <option>Western Equatoria</option>
+            </select>
+          </label>
+          <label class="field"><span>County</span><input name="county" type="text" required></label>
+        </div>
+        <div class="post-form-row-2">
+          <label class="field"><span>Registration Number</span><input name="registration_number" type="text" placeholder="If registered with the Ministry"></label>
+          <label class="field"><span>Year Established</span><input name="year_established" type="number" min="1900" max="2099"></label>
+        </div>
+        <button class="card-button u-card-button-compact-sm" type="submit">Submit for Review</button>
+      </form>
+    </section>
+
+    <!-- Stat strip -->
+    <div class="dash-stat-grid school-stat-grid" id="school-stat-grid">
+      <div class="summary-card card">
+        <p class="card-label">Enrollment</p>
+        <p class="card-number" id="sd-enrollment">&mdash;</p>
+        <p class="card-sub">Current students</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Capacity</p>
+        <p class="card-number" id="sd-capacity">&mdash;</p>
+        <p class="card-sub">Total places</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Saved by users</p>
+        <p class="card-number" id="sd-bookmarks">&mdash;</p>
+        <p class="card-sub">Bookmarks</p>
+      </div>
+      <div class="summary-card card">
+        <p class="card-label">Status</p>
+        <p class="card-number school-status-number" id="sd-status">&mdash;</p>
+        <p class="card-sub">Admissions</p>
+      </div>
+    </div>
+
+    <!-- Main two-column grid -->
+    <div class="school-dashboard-grid">
+
+      <!-- LEFT col -->
+      <div class="school-column">
+
+        <!-- School info edit -->
+        <section class="content-panel">
+          <p class="section-label school-section-label">SCHOOL INFORMATION</p>
+          <p id="sd-info-msg" class="status-message school-status-message"></p>
+          <form id="sd-info-form" class="post-form-grid">
+            <div class="post-form-row-2">
+              <label class="field"><span>School Name</span><input class="field-input" name="name" type="text" required></label>
+              <label class="field"><span>Status</span>
+                <select class="school-select" name="status">
+                  <option value="open">Open</option>
+                  <option value="limited">Limited</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Capacity</span><input name="capacity" type="number" min="0"></label>
+              <label class="field"><span>Enrollment</span><input name="enrollment" type="number" min="0"></label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Contact Name</span><input name="contact_name" type="text"></label>
+              <label class="field"><span>Phone</span><input name="phone" type="tel"></label>
+            </div>
+            <label class="field"><span>Email</span><input name="email" type="email"></label>
+            <label class="field"><span>Description</span>
+              <textarea name="description" rows="3" class="post-form-textarea"></textarea>
+            </label>
+
+            <p class="school-form-divider">Hours &amp; Days Open</p>
+            <div class="post-form-row-2">
+              <label class="field"><span>Opens</span><input name="hours_open" type="time"></label>
+              <label class="field"><span>Closes</span><input name="hours_close" type="time"></label>
+            </div>
+            <div class="school-checkbox-grid">
+              <label class="school-checkbox"><input type="checkbox" name="hours_day_mon"> Mon</label>
+              <label class="school-checkbox"><input type="checkbox" name="hours_day_tue"> Tue</label>
+              <label class="school-checkbox"><input type="checkbox" name="hours_day_wed"> Wed</label>
+              <label class="school-checkbox"><input type="checkbox" name="hours_day_thu"> Thu</label>
+              <label class="school-checkbox"><input type="checkbox" name="hours_day_fri"> Fri</label>
+              <label class="school-checkbox"><input type="checkbox" name="hours_day_sat"> Sat</label>
+              <label class="school-checkbox"><input type="checkbox" name="hours_day_sun"> Sun</label>
+            </div>
+
+            <p class="school-form-divider">Location &amp; Identity</p>
+            <div class="post-form-row-2">
+              <label class="field"><span>State</span><input name="state" type="text"></label>
+              <label class="field"><span>County</span><input name="county" type="text"></label>
+            </div>
+            <label class="field"><span>Physical Address</span><input name="address" type="text"></label>
+            <div class="post-form-row-2">
+              <label class="field"><span>Registration Number</span><input name="registration_number" type="text"></label>
+              <label class="field"><span>Year Established</span><input name="year_established" type="number" min="1900" max="2099"></label>
+            </div>
+            <div class="field">
+              <span>School Logo / Photo</span>
+              <div class="school-logo-uploader">
+                <img id="sd-logo-img" class="school-logo-preview hidden" src="" alt="School logo">
+                <div id="sd-logo-fallback" class="school-logo-fallback">No logo uploaded</div>
+                <input type="file" id="sd-logo-input" accept="image/*" class="hidden">
+                <button type="button" id="sd-logo-upload-btn" class="card-button school-outline-btn u-inline-btn-sm">Upload Logo</button>
+              </div>
+              <p id="sd-logo-msg" class="status-message school-status-message"></p>
+            </div>
+
+            <p class="school-form-divider">Academic</p>
+            <div class="post-form-row-2">
+              <label class="field"><span>Curriculum</span><input name="curriculum" type="text" placeholder="e.g. National"></label>
+              <label class="field"><span>Language of Instruction</span><input name="language" type="text" placeholder="e.g. English"></label>
+            </div>
+            <label class="field"><span>Subjects / Courses Offered</span>
+              <textarea name="subjects_offered" rows="2" class="post-form-textarea" placeholder="One per line or comma-separated"></textarea>
+            </label>
+
+            <p class="school-form-divider">Mission, Vision &amp; Values</p>
+            <label class="field"><span>Mission Statement</span><textarea name="mission" rows="2" class="post-form-textarea"></textarea></label>
+            <label class="field"><span>Vision Statement</span><textarea name="vision" rows="2" class="post-form-textarea"></textarea></label>
+            <label class="field"><span>Core Values</span><textarea name="core_values" rows="2" class="post-form-textarea"></textarea></label>
+
+            <p class="school-form-divider">Admission Information</p>
+            <div class="post-form-row-2">
+              <label class="field"><span>Age Requirements</span><input name="age_requirements" type="text" placeholder="e.g. 6-18 years"></label>
+              <label class="field"><span>Entry Grade Levels</span><input name="entry_grades" type="text" placeholder="e.g. P1, S1"></label>
+            </div>
+            <label class="field"><span>Fees Structure</span><textarea name="fees_structure" rows="2" class="post-form-textarea"></textarea></label>
+            <label class="field"><span>How to Apply</span><textarea name="how_to_apply" rows="2" class="post-form-textarea"></textarea></label>
+            <label class="field"><span>Admission Requirements</span>
+              <textarea name="requirements_text" rows="4" class="post-form-textarea" placeholder="Paste your admission requirements here — birth certificate, previous report card, etc."></textarea>
+            </label>
+
+            <p class="school-form-divider">Staff &amp; Leadership</p>
+            <div class="post-form-row-2">
+              <label class="field"><span>Headteacher / Principal</span><input name="headteacher_name" type="text"></label>
+              <label class="field"><span>Teaching Staff Count</span><input name="teaching_staff_count" type="number" min="0"></label>
+            </div>
+
+            <p class="school-form-divider">Facilities</p>
+            <label class="field"><span>Classroom Count</span><input name="classroom_count" type="number" min="0"></label>
+            <div class="school-checkbox-grid">
+              <label class="school-checkbox"><input type="checkbox" name="has_library"> Library</label>
+              <label class="school-checkbox"><input type="checkbox" name="has_laboratory"> Laboratory</label>
+              <label class="school-checkbox"><input type="checkbox" name="has_sports_facilities"> Sports facilities</label>
+              <label class="school-checkbox"><input type="checkbox" name="has_water_sanitation"> Water &amp; sanitation</label>
+              <label class="school-checkbox"><input type="checkbox" name="has_electricity"> Electricity</label>
+            </div>
+
+            <p class="school-form-divider">Extracurricular Activities</p>
+            <div class="school-checkbox-grid">
+              <label class="school-checkbox"><input type="checkbox" name="has_sports_clubs"> Sports clubs</label>
+              <label class="school-checkbox"><input type="checkbox" name="has_arts_culture"> Arts &amp; culture</label>
+              <label class="school-checkbox"><input type="checkbox" name="has_academic_clubs"> Academic clubs</label>
+              <label class="school-checkbox"><input type="checkbox" name="has_student_government"> Student government</label>
+            </div>
+            <div class="field">
+              <span>Other Activities</span>
+              <div id="sd-activity-tags" class="school-tag-list"></div>
+              <div class="school-tag-add-row">
+                <input type="text" id="sd-activity-input" class="field-input" placeholder="e.g. Debate club, Chess club, Environmental club">
+                <button type="button" id="sd-activity-add-btn" class="card-button school-outline-btn u-inline-btn-sm">+ Add</button>
+              </div>
+            </div>
+
+            <button class="card-button u-card-button-compact-sm" type="submit">Save Changes</button>
+          </form>
+        </section>
+
+        <!-- National exam pass rates -->
+        <section class="content-panel">
+          <p class="section-label school-section-label-sm">NATIONAL EXAM PASS RATES</p>
+          <p id="sd-exam-msg" class="status-message school-status-message"></p>
+          <div id="sd-exam-editor"></div>
+          <div class="school-toolbar">
+            <button id="sd-add-exam" class="card-button school-outline-btn" type="button">+ Add result</button>
+            <button id="sd-save-exam" class="card-button u-card-button-compact-sm" type="button">Save Exam Results</button>
+          </div>
+        </section>
+
+        <!-- Admission requirements document -->
+        <section class="content-panel">
+          <p class="section-label school-section-label-sm">ADMISSION REQUIREMENTS DOCUMENT</p>
+          <p class="u-text-muted-xs">Have a printed admission form or checklist? Upload it as a PDF and students will be able to download it from your school's profile — alongside the text you pasted above.</p>
+          <p id="sd-reqdoc-msg" class="status-message school-status-message"></p>
+          <a id="sd-reqdoc-link" class="text-link hidden" href="" target="_blank" rel="noopener" download>Download current document</a>
+          <div class="school-toolbar">
+            <input type="file" id="sd-reqdoc-input" accept=".pdf,image/*" class="hidden">
+            <button type="button" id="sd-reqdoc-upload-btn" class="card-button school-outline-btn u-inline-btn-sm">Upload Document</button>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- RIGHT col -->
+      <div class="school-column">
+
+        <!-- Post announcement -->
+        <section class="content-panel">
+          <p class="section-label school-section-label">POST ANNOUNCEMENT</p>
+          <p id="sd-ann-msg" class="status-message school-status-message"></p>
+          <form id="sd-ann-form" class="post-form-grid">
+            <label class="field"><span>Title</span><input name="title" type="text" placeholder="Announcement title" required></label>
+            <label class="field"><span>Body</span>
+              <textarea name="body" rows="3" class="post-form-textarea" placeholder="Write your announcement here…" required></textarea>
+            </label>
+            <div class="post-form-row-2">
+              <label class="field"><span>Audience</span>
+                <select class="school-select" name="audience">
+                  <option value="students">Students</option>
+                  <option value="parents">Parents</option>
+                  <option value="teachers">Teachers</option>
+                  <option value="all">All</option>
+                </select>
+              </label>
+              <label class="field"><span>Priority</span>
+                <select class="school-select" name="priority">
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </label>
+            </div>
+            <label class="field"><span>Expires on</span>
+              <input class="school-input" name="expires_at" type="date">
+            </label>
+            <label class="field"><span>Attachment URL <span class="field-optional">(optional)</span></span>
+              <input class="school-input" name="attachment_url" type="url" placeholder="https://…">
+            </label>
+            <label class="field"><span>Attach PDF file <span class="field-optional">(optional)</span></span>
+              <input name="attachment_file" type="file" accept=".pdf" class="u-file-plain-sm">
+            </label>
+            <button class="card-button u-card-button-compact-sm" type="submit">Submit for review</button>
+          </form>
+        </section>
+
+        <!-- Upload material -->
+        <section class="content-panel">
+          <p class="section-label school-section-label">UPLOAD LEARNING RESOURCE</p>
+          <p id="sd-mat-msg" class="status-message school-status-message"></p>
+          <form id="sd-mat-form" class="post-form-grid">
+            <label class="field"><span>Title</span><input name="title" type="text" placeholder="Resource title" required></label>
+            <div class="post-form-row-2">
+              <label class="field"><span>Subject</span>
+                <input type="text" class="school-select" name="subject" list="subject-suggestions" placeholder="e.g. Mathematics" required>
+              </label>
+              <label class="field"><span>Grade</span>
+                <select class="school-select" name="grade">
+                  <option>P1</option><option>P2</option><option>P3</option><option>P4</option>
+                  <option>P5</option><option>P6</option><option>P7</option><option>P8</option>
+                  <option>S1</option><option>S2</option><option>S3</option>
+                  <option>S4</option>
+                </select>
+              </label>
+            </div>
+            <div class="post-form-row-2">
+              <label class="field"><span>Year</span><input name="year" type="number" placeholder="e.g. 2024" min="2000" max="2099" required></label>
+              <label class="field"><span>Type</span>
+                <select class="school-select" name="type">
+                  <option value="past paper">Past Paper</option>
+                  <option value="study guide">Study Guide</option>
+                  <option value="teacher note">Teacher Note</option>
+                </select>
+              </label>
+            </div>
+            <label class="field"><span>PDF file (max 20 MB)</span>
+              <input class="school-file" name="file" type="file" accept=".pdf">
+            </label>
+            <button class="card-button u-card-button-compact-sm" type="submit">Submit for review</button>
+          </form>
+          <datalist id="subject-suggestions">
+            <option value="English">
+            <option value="Mathematics">
+            <option value="Kiswahili">
+            <option value="Science">
+            <option value="Biology">
+            <option value="Chemistry">
+            <option value="Physics">
+            <option value="Geography">
+            <option value="History">
+            <option value="Social Studies">
+            <option value="Christian Religious Education">
+            <option value="Islamic Religious Education">
+            <option value="Civic Education">
+            <option value="Agriculture">
+            <option value="Computer Studies">
+            <option value="Business Studies">
+            <option value="Home Science">
+            <option value="Literature in English">
+            <option value="Physical Education">
+          </datalist>
+        </section>
+
+        <!-- Recent announcements -->
+        <section class="content-panel">
+          <p class="section-label school-section-label-sm">RECENT ANNOUNCEMENTS</p>
+          <div id="sd-ann-list"><p class="loading-text">Loading…</p></div>
+        </section>
+
+        <!-- Recent materials -->
+        <section class="content-panel">
+          <p class="section-label school-section-label-sm">UPLOADED MATERIALS</p>
+          <div id="sd-mat-list"><p class="loading-text">Loading…</p></div>
+        </section>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>

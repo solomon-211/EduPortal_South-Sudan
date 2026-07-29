@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>School Profile | EduPortal South Sudan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Open+Sans:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/static/html/school.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/app/shared-utils.js"></script>
+  <script defer src="/static/navigation/sidebar-main.js"></script>
+  <script defer src="/static/app/main.js"></script>
+</head>
+<body data-page="school">
+  <div class="dashboard">
+    <nav class="sidebar"></nav>
+
+    <header class="top-banner">
+      <div>
+        <p class="eyebrow">School Profile</p>
+        <h1>Details and admission checklist.</h1>
+      </div>
+      <div class="top-banner-actions">
+        <a class="banner-link" href="/directory">Directory</a>
+        <a class="banner-link banner-link-solid" href="/dashboard">Dashboard</a>
+      </div>
+    </header>
+
+    <main class="main-content" id="school-shell">
+      <a class="school-back-link" href="/directory">
+        <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Back to Explore Institutions
+      </a>
+      <section class="card content-panel school-profile-card">
+        <div id="school-detail">
+          <p class="school-loading">Loading school profile…</p>
+        </div>
+      </section>
+
+      <section class="card content-panel">
+        <p class="section-label">ADMISSION CHECKLIST</p>
+        <p class="school-note">Required documents to bring when applying.</p>
+        <div id="school-checklist"></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

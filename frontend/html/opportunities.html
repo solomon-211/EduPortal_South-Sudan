@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scholarships | EduPortal South Sudan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Open+Sans:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/static/html/opportunities.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/app/shared-utils.js"></script>
+  <script defer src="/static/navigation/sidebar-main.js"></script>
+  <script defer src="/static/app/main.js"></script>
+</head>
+<body data-page="opportunities">
+<div class="dashboard">
+  <nav class="sidebar"></nav>
+
+  <header class="top-banner">
+    <div>
+      <p class="eyebrow">Scholarships &amp; Opportunities</p>
+      <h1 id="page-greeting">Welcome back.</h1>
+    </div>
+    <div class="top-banner-actions"></div>
+  </header>
+
+  <main class="main-content">
+
+    <section class="dash-hero-strip page-hero-strip">
+      <div class="dash-hero-text">
+        <p class="dash-hero-label">Scholarships &amp; Opportunities</p>
+        <h2 class="dash-hero-title">Verified scholarships for South Sudan learners.</h2>
+      </div>
+      <div class="dash-hero-actions">
+        <a class="dash-hero-btn dash-hero-btn-primary" href="/my-applications">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16" aria-hidden="true"><path d="M5 3h10v14l-5-3-5 3V3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          My Applications
+        </a>
+      </div>
+    </section>
+
+    <!-- List view -->
+    <section id="view-dashboard" class="view active">
+      <section class="toolbar-card card">
+        <form id="scholarships-search-form" class="filter-row">
+          <input name="search" type="search" placeholder="Search by title or provider&hellip;">
+          <select name="state" title="Filter by state">
+            <option value="">All states</option>
+            <option>Central Equatoria</option>
+            <option>Eastern Equatoria</option>
+            <option>Western Equatoria</option>
+            <option>Jonglei</option>
+            <option>Lakes</option>
+            <option>Northern Bahr el Ghazal</option>
+            <option>Unity</option>
+            <option>Upper Nile</option>
+            <option>Warrap</option>
+            <option>Western Bahr el Ghazal</option>
+          </select>
+          <select name="eligibility" title="Filter by eligibility">
+            <option value="">Any eligibility</option>
+            <option value="primary">Primary learners</option>
+            <option value="secondary">Secondary learners</option>
+            <option value="female">Female learners</option>
+            <option value="rural">Rural communities</option>
+          </select>
+          <button class="card-button" type="submit">Search</button>
+        </form>
+        <div class="apps-view-switch opp-view-switch">
+          <span class="apps-view-label">View</span>
+          <div class="view-toggle">
+            <button class="toggle-btn active" id="opp-btn-card" title="Card view" type="button">
+              <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+            </button>
+            <button class="toggle-btn" id="opp-btn-list" title="List view — full details" type="button">
+              <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true"><path d="M5 4h8M5 8h8M5 12h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="2.5" cy="4" r="1" fill="currentColor"/><circle cx="2.5" cy="8" r="1" fill="currentColor"/><circle cx="2.5" cy="12" r="1" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+      <section id="opportunities-results" class="cards-grid results-grid"></section>
+
+      <!-- NGO Officer: post scholarship (shown via JS) -->
+      <section id="post-scholarship-section" class="content-panel hidden u-panel-top-md">
+        <p class="section-label u-card-head-sm">POST A SCHOLARSHIP</p>
+        <p class="u-copy-muted-md">Submitted scholarships go to the admin approval queue before appearing publicly.</p>
+        <form id="post-scholarship-form" class="post-form-grid">
+          <label class="field"><span>Title</span><input name="title" type="text" placeholder="Scholarship title" required></label>
+          <label class="field"><span>Description</span><textarea name="description" rows="5" class="post-form-textarea" placeholder="What does this scholarship offer? Leave a blank line between sections (e.g. overview, benefits, available slots) so they display as separate paragraphs." required></textarea></label>
+          <label class="field"><span>Eligibility</span><textarea name="eligibility" rows="3" class="post-form-textarea" placeholder="Who can apply? (grade level, gender, state…)" required></textarea></label>
+          <div class="post-form-row-2">
+            <label class="field"><span>Deadline</span><input name="deadline" type="date" class="u-date-plain" required></label>
+            <label class="field"><span>External Application Link</span><input name="external_link" type="url" placeholder="https://…"></label>
+          </div>
+          <label class="field"><span>How to Apply</span><textarea name="how_to_apply" rows="3" class="post-form-textarea" placeholder="Step-by-step application instructions…" required></textarea></label>
+          <label class="field"><span>Required Documents</span><input name="required_docs" type="text" placeholder="e.g. Report card, ID, motivation letter"></label>
+          <div class="post-form-row-2">
+            <label class="field"><span>Poster Image (optional)</span><input name="poster" type="file" accept="image/*" id="opp-poster-input"></label>
+            <label class="field"><span>Promo Video (optional)</span><input name="video" type="file" accept=".mp4,.webm,.ogg,.m4v" id="opp-video-input"></label>
+          </div>
+          <div class="post-form-row-2">
+            <div id="opp-poster-preview" class="file-preview hidden"></div>
+            <div id="opp-video-preview" class="file-preview hidden"></div>
+          </div>
+          <button class="card-button u-card-button-compact-sm" type="submit">Submit for review</button>
+          <p id="post-scholarship-msg" class="status-message"></p>
+        </form>
+      </section>
+    </section>
+
+    <!-- Detail view -->
+    <section id="view-scholarship-detail" class="view">
+      <button class="back-link" type="button" id="scholarship-back-btn">
+        <svg viewBox="0 0 20 20" fill="none" width="14" height="14" aria-hidden="true"><path d="M12 5l-5 5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        All Scholarships
+      </button>
+      <div class="detail-layout">
+        <aside class="qa-panel card">
+          <p class="eyebrow">Have a question?</p>
+          <h3>Ask before you apply</h3>
+          <p class="section-copy">Post a question for the programme coordinator, then read the full details on the right.</p>
+          <textarea placeholder="What would you like to know?" rows="6" class="qa-textarea"></textarea>
+          <button class="card-button u-card-button-compact-sm" type="button">Send question</button>
+        </aside>
+        <div id="scholarship-detail-content" class="detail-main card"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

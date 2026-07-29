@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Bookmarks | EduPortal South Sudan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Open+Sans:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/static/html/bookmarks.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="/static/app/shared-utils.js"></script>
+  <script defer src="/static/navigation/sidebar-main.js"></script>
+  <script defer src="/static/app/main.js"></script>
+</head>
+<body data-page="bookmarks">
+  <div class="dashboard">
+    <nav class="sidebar"></nav>
+
+    <header class="top-banner">
+      <div>
+        <p class="eyebrow">My Bookmarks</p>
+        <h1 id="page-greeting">Welcome back.</h1>
+      </div>
+      <div class="top-banner-actions"></div>
+    </header>
+
+    <main class="main-content">
+      <section class="dash-hero-strip page-hero-strip">
+        <div class="dash-hero-text">
+          <p class="dash-hero-label">My Bookmarks</p>
+          <h2 class="dash-hero-title">Saved schools and materials.</h2>
+        </div>
+        <div class="dash-hero-actions">
+          <a class="dash-hero-btn dash-hero-btn-primary" href="/directory">
+            <svg viewBox="0 0 20 20" fill="none" width="16" height="16" aria-hidden="true"><path d="M3 10l7-5 7 5-7 5-7-5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6 11.5v4l4 2.5 4-2.5v-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            Browse Schools
+          </a>
+          <a class="dash-hero-btn dash-hero-btn-secondary" href="/materials">
+            <svg viewBox="0 0 20 20" fill="none" width="16" height="16" aria-hidden="true"><path d="M4 3h9l3 3v11H4V3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 8h6M7 11h6M7 14h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            Browse Materials
+          </a>
+        </div>
+      </section>
+
+      <!-- Tab nav -->
+      <div class="admin-tab-nav u-space-bottom-md">
+        <button class="admin-tab-btn active" data-tab="bm-schools">Schools</button>
+        <button class="admin-tab-btn" data-tab="bm-materials">Materials</button>
+        <button class="admin-tab-btn" data-tab="bm-scholarships">Scholarships</button>
+      </div>
+
+      <div id="bm-schools" class="admin-tab-panel active">
+        <div id="bm-schools-list" class="cards-grid results-grid"></div>
+      </div>
+      <div id="bm-materials" class="admin-tab-panel">
+        <div id="bm-materials-list" class="cards-grid results-grid"></div>
+      </div>
+      <div id="bm-scholarships" class="admin-tab-panel">
+        <div id="bm-scholarships-list" class="cards-grid results-grid"></div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
