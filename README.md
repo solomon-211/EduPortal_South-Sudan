@@ -26,6 +26,7 @@ A Flask-based education portal for South Sudan that connects students, parents, 
 - [Backups](#backups)
 - [Security](#security)
 - [Deployment](#deployment)
+- [Live Project](#live-project)
 
 ---
 
@@ -570,3 +571,9 @@ The live instance runs on AWS (single EC2 instance behind Nginx, with S3 for fil
 5. A reverse proxy (Nginx or similar) handles TLS and raises the upload size limit (the app allows up to 100MB for materials/videos, 2MB for avatars/logos)
 
 `python backend/app.py` (Flask's built-in threaded server) is fine for small deployments. Run it under a process supervisor (systemd or equivalent) so it restarts on crash and reboot.
+
+---
+
+## Live Project
+
+🌐 [https://eduportalss.solomonleek.tech](https://eduportalss.solomonleek.tech)
